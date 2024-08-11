@@ -1,0 +1,21 @@
+[package]
+name = "circuits"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = {version = "0.14", default-features = false, features = [
+	"bevy_asset",
+	"bevy_sprite",
+	"bevy_ui",
+	"bevy_state",
+	"x11",
+	"png",
+	"default_font",
+	"dynamic_linking",
+]}
+bevy_egui = "0.28"
+derive_more = "0.99.18"
+
+[profile.dev.package."*"]
+opt-level = 3
