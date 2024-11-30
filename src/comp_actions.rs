@@ -1,31 +1,16 @@
-use bevy::prelude::*;
-
-use crate::{
-    structs::{
-        ComponentInfo, ConvertCircuit, DeleteComponent, FirstPos, Position, RoundState, Selected,
-        UpdateLabel,
-    },
-    CursorPosition,
-};
+use crate::*;
 
 #[allow(clippy::complexity)]
 pub fn move_entity(
     cursor: Res<CursorPosition>,
     mut q_points: Query<(&mut Transform, &mut Position), (With<Selected>, Without<FirstPos>)>,
-    round_state: Res<State<RoundState>>,
 ) {
     if !cursor.within_grid() {
         return;
     }
-    let cursor = cursor.round_on_state(&round_state);
     for (mut transform, mut component_pos) in &mut q_points {
-        transform.translation =
-            if round_state.get() == &RoundState::Round && !component_pos.is_round() {
-                let unround_pos = cursor + *component_pos - component_pos.round();
-                unround_pos.into()
-            } else {
-                cursor.into()
-            };
+        // TODO: Move entity to consider only the selected node.
+        transform.translation = cursor.0.into();
         *component_pos = transform.translation.into();
     }
 }

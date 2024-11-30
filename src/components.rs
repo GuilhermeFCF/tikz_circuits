@@ -1,13 +1,8 @@
+use crate::*;
 use bevy::{
-    prelude::*,
     render::render_asset::RenderAssetUsages,
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
     utils::hashbrown::HashMap,
-};
-
-use crate::{
-    structs::{BuildInfo, ComponentInfo, Position, TikzComponent, TikzNode, TikzNodes},
-    GRID_SIZE,
 };
 
 pub struct Components;
@@ -95,6 +90,9 @@ impl Components {
                 ..default()
             }))
             .insert(ComponentInfo::default())
+            .insert(TikzNode {
+                label: comp_type.to_string(),
+            })
             .with_children(|p| {
                 p.spawn(Text2dBundle {
                     text: Text::default().with_justify(JustifyText::Center),
@@ -149,48 +147,66 @@ impl Components {
         initial: Position,
         fin: Position,
         comp_type: TikzComponent,
-        mut tikz_nodes: ResMut<TikzNodes>,
     ) -> Entity {
-        use TikzComponent::*;
         assert!(
             comp_type.is_gate(),
             "Function create_gate is supposed to be used with gate type"
         );
+
         let gate = Components::create_with_mesh(commands, handles, initial, fin, comp_type);
+        use TikzComponent::*;
         match comp_type {
             AndGate | OrGate | XorGate => {
-                tikz_nodes.insert(
-                    gate,
-                    vec![
-                        TikzNode::new(Position { x: -2.0, y: 1.0 }, ".in 1"),
-                        TikzNode::new(Position { x: -2.0, y: -1.0 }, ".in 2"),
-                        TikzNode::new(Position { x: 2.0, y: 0.0 }, ".out"),
-                    ],
-                );
+                let in1 = commands
+                    .spawn((
+                        SpriteBundle {
+                            transform: Transform::from_xyz(-2.0 * GRID_SIZE, GRID_SIZE, 0.0)
+                                .with_scale(Vec3::splat(1.0)),
+                            ..default()
+                        },
+                        TikzNode {
+                            label: ".in 1".to_string(),
+                        },
+                    ))
+                    .id();
+
+                let in2 = commands
+                    .spawn((
+                        SpriteBundle {
+                            transform: Transform::from_xyz(-2.0 * GRID_SIZE, -GRID_SIZE, 0.0)
+                                .with_scale(Vec3::splat(1.0)),
+                            ..default()
+                        },
+                        TikzNode {
+                            label: ".in 2".to_string(),
+                        },
+                    ))
+                    .id();
+                let out = commands
+                    .spawn((
+                        SpriteBundle {
+                            transform: Transform::from_xyz(2.0 * GRID_SIZE, 0.0, 0.0)
+                                .with_scale(Vec3::splat(1.0)),
+                            ..default()
+                        },
+                        TikzNode {
+                            label: ".out".to_string(),
+                        },
+                    ))
+                    .id();
+                info!("{in1} {in2} {out}");
+
+                commands.entity(gate).push_children(&[in1, in2, out]);
             }
-            TikzComponent::NotGate => {
-                tikz_nodes.insert(
-                    gate,
-                    vec![
-                        TikzNode::new(Position { x: -2.0, y: 0.0 }, ".in"),
-                        TikzNode::new(Position { x: 2.0, y: 0.0 }, ".out"),
-                    ],
-                );
-            }
-            _ => unreachable!("Only gates"),
+
+            NotGate => {}
+            _ => unreachable!("Only gate type"),
         }
         gate
     }
 
     fn create_circle() -> Vec<[f32; 3]> {
-        let mut circle = Vec::with_capacity(Self::CIRCLE_RESOLUTION);
-        for i in 0..Self::CIRCLE_RESOLUTION {
-            let x = Self::CIRCLE_RADIUS * (i as f32).cos();
-            let y = Self::CIRCLE_RADIUS * (i as f32).sin();
-
-            circle.push([x, y, 0.0]);
-        }
-        circle
+        Components::create_circle_from_radius(Self::CIRCLE_RADIUS, Position { x: 0.0, y: 0.0 })
     }
 
     fn create_circle_from_radius(radius: f32, p: Position) -> Vec<[f32; 3]> {

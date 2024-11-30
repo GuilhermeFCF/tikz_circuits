@@ -3,19 +3,6 @@ use bevy::{
     prelude::*,
 };
 use bevy_egui::{EguiContexts, EguiPlugin};
-use comp_actions::{delete_component, move_entity, update_label};
-use components::load_handles;
-use create::{create, update_file, CurrentFile};
-use input::{
-    change_current_component, despawn_selected, handle_left_click, on_create_component,
-    on_create_single_component, on_initial_component, remove_all,
-};
-use structs::{
-    CircuitText, ConvertCircuit, DeleteAll, DeleteComponent, FirstPos, Position, RoundState,
-    Selected, TikzComponent, TikzNodes,
-};
-
-use ui::ui_system;
 
 mod comp_actions;
 mod components;
@@ -24,27 +11,35 @@ mod input;
 mod structs;
 mod ui;
 
+pub use comp_actions::*;
+pub use components::*;
+pub use create::*;
+pub use input::*;
+pub use structs::*;
+pub use ui::*;
+
 const GRID_SIZE: f32 = 16.0;
 const GRID_COUNT: u32 = 40;
 
 #[derive(Resource, Deref)]
-struct CursorPosition(Position);
+pub struct CursorPosition(Position);
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(EguiPlugin)
-        .insert_state(RoundState::Round)
         .insert_resource(TikzComponent::Resistor)
         .insert_resource(CursorPosition(Position::default()))
         .insert_resource(CircuitText(String::default()))
-        .insert_resource(TikzNodes::default())
-        .insert_resource(CurrentFile("/home/guilherme/tmp/circuit.tex".to_string()))
+        .insert_resource(CurrentFile(
+            "/home/guilherme/projects/circuits/test.tex".to_string(),
+        ))
         .add_systems(
             Update,
             (
                 ui_system,
                 get_cursor_position,
+                mark_node,
                 move_entity.run_if(input_pressed(MouseButton::Right)),
                 handle_left_click.run_if(input_just_pressed(MouseButton::Left)),
                 despawn_selected.run_if(input_just_pressed(KeyCode::Delete)),
@@ -106,18 +101,22 @@ fn setup(mut commands: Commands) {
 
     // Rendering default nodes
     const OFFSET: f32 = GRID_COUNT as f32 * GRID_SIZE / 2.0;
-    for x_i in 0..=GRID_COUNT {
-        for y_i in 0..=GRID_COUNT {
+    for x_i in 0..GRID_COUNT {
+        for y_i in 0..GRID_COUNT {
             let x = x_i as f32 * GRID_SIZE - OFFSET + 160.;
             let y = y_i as f32 * GRID_SIZE - OFFSET;
-            commands.spawn(SpriteBundle {
-                transform: Transform {
-                    translation: Vec3::new(x, y, 0.0),
-                    scale: Vec3::splat(1.0),
+            commands
+                .spawn(SpriteBundle {
+                    transform: Transform {
+                        translation: Vec3::new(x, y, 0.0),
+                        scale: Vec3::splat(1.0),
+                        ..default()
+                    },
                     ..default()
-                },
-                ..default()
-            });
+                })
+                .insert(TikzNode {
+                    label: "".to_string(),
+                });
         }
     }
 }

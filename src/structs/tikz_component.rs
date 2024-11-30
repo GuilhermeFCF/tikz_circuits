@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+#[allow(dead_code)]
 #[derive(Debug, PartialEq, Hash, PartialOrd, Ord, Eq, Component, Copy, Clone, Resource)]
 pub enum TikzComponent {
     AndGate,
@@ -26,6 +27,7 @@ impl TikzComponent {
         use TikzComponent::*;
         matches!(self, AndGate | OrGate | XorGate | NotGate)
     }
+
     pub fn tikz_type(&self) -> &str {
         use TikzComponent::*;
         match self {

@@ -4,17 +4,13 @@ use bevy_egui::{
     EguiClipboard, EguiContexts,
 };
 
-use crate::structs::{
-    CircuitText, ComponentInfo, DeleteAll, DeleteComponent, RoundState, Selected, TikzComponent,
-    UpdateLabel,
-};
+use crate::*;
 
 pub fn ui_system(
     mut commands: Commands,
     mut contexts: EguiContexts,
     mut clipboard: ResMut<EguiClipboard>,
     mut cc: ResMut<TikzComponent>,
-    rs: Res<State<RoundState>>,
     mut selected: Query<(Entity, &mut ComponentInfo, &TikzComponent), With<Selected>>,
     circuit: Res<CircuitText>,
 ) {
@@ -62,10 +58,6 @@ pub fn ui_system(
 
             ui.separator();
             ui.vertical_centered(|ui| {
-                ui.label(match rs.get() {
-                    RoundState::Round => "Aproximando pontos - '+'",
-                    RoundState::NoRound => "Sem aproximacao - '+'",
-                });
                 if let Ok((ent, mut info, selected_type)) = selected.get_single_mut() {
                     ui.separator();
                     ui.label(format!("Componente selecionado: {selected_type}"));

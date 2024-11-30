@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{GRID_COUNT, GRID_SIZE};
 
-use super::RoundState;
+// use super::RoundState;
 
 #[derive(Debug, Default, Component, Clone, Copy, PartialEq)]
 pub struct Position {
@@ -18,6 +18,10 @@ impl std::hash::Hash for Position {
 }
 
 impl Position {
+    pub const FAR: Self = Self {
+        x: -100.0,
+        y: -100.0,
+    };
     pub fn len(&self) -> f32 {
         (self.x * self.x + self.y * self.y).sqrt()
     }
@@ -29,18 +33,15 @@ impl Position {
     }
 
     pub fn close_to(&self, other: &Self) -> bool {
-        (*self - *other).len() < GRID_SIZE / 3.0
+        self.distance(other) < GRID_SIZE / 3.0
+    }
+
+    pub fn distance(&self, other: &Self) -> f32 {
+        (*self - *other).len()
     }
 
     pub fn is_round(&self) -> bool {
         *self == self.round()
-    }
-
-    pub fn round_on_state(&self, state: &Res<State<RoundState>>) -> Self {
-        match state.get() {
-            RoundState::Round => self.round(),
-            RoundState::NoRound => *self,
-        }
     }
 
     pub fn round(&self) -> Self {

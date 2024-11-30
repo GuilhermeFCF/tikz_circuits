@@ -1,143 +1,141 @@
 use bevy::prelude::*;
+use bevy::utils::HashMap;
+use std::fs::File;
 use std::io::Write;
-use std::{collections::HashMap, fs::File};
 
-use crate::structs::{
-    BuildInfo, CircuitText, ComponentInfo, ConvertCircuit, FirstPos, Position, TikzComponent,
-    TikzNodes,
-};
-use crate::GRID_SIZE;
+use crate::*;
 
 type Info<'a> = (
     Entity,
     &'a TikzComponent,
-    &'a BuildInfo,
-    &'a Position,
     &'a ComponentInfo,
+    &'a ComponentStructure,
 );
 pub fn create(
     _: Trigger<ConvertCircuit>,
     mut commands: Commands,
-    components: Query<Info, Without<FirstPos>>,
     mut text: ResMut<CircuitText>,
-    tikz_nodes: Res<TikzNodes>,
+    components: Query<Info>,
+    nodes: Query<&GlobalTransform>,
+    labels: Query<(Entity, &TikzNode), With<TikzComponent>>,
 ) {
-    use TikzComponent::*;
-    let mut buf = "\\draw \n".to_string();
-    let mut last_pos = Position { x: 100.0, y: 100.0 };
-    // TODO: Render lines
-    let (lines, mut components): (Vec<_>, Vec<_>) =
-        components.into_iter().partition(|e| *e.1 == Line);
-    let mut nodes_map: HashMap<Position, (i32, String)> = HashMap::new();
-    let mut id_map: HashMap<Entity, i32> = HashMap::new();
-    let mut ids = 0;
-    for (ent, _, _, pos, ..) in components.iter() {
-        if let Some(nodes) = tikz_nodes.get(*ent) {
-            ids += 1;
-            id_map.insert(*ent, ids);
-            for node in nodes {
-                nodes_map.insert(
-                    (**pos + node.pos * GRID_SIZE).tikz_coords(),
-                    (ids, node.label.clone()),
-                );
-            }
+    let mut buf = "\\draw\n".to_string();
+    let mut components: Vec<_> = components.iter().collect();
+    components.sort_by_key(|e| e.1);
+    let mut l_pos = Position::FAR;
+    let mut parent_map = HashMap::new();
+    let mut id = 0;
+    let mut current_entity = Entity::PLACEHOLDER;
+    for (entity, _) in &labels {
+        if current_entity != entity {
+            current_entity = entity;
+            parent_map.insert(current_entity, id);
+            id += 1;
         }
     }
-    components.sort_by_key(|k| k.3); // sort by position
-    components.sort_by_key(|k| k.1); // sort by component -- gates first
-    for (ent, component, build_info, pos, ComponentInfo { label, .. }) in components {
-        if *component == Label {
-            continue;
-        }
+    info!("{parent_map:?}");
+    let get_label_entity = |ent: &Entity| -> (&str, Entity) {
+        let Ok((entity, TikzNode { label })) = labels.get(*ent) else {
+            return ("", Entity::PLACEHOLDER);
+        };
+        (label, entity)
+    };
+
+    let get_pos = |ent: &Entity| -> Position {
+        let Ok(transform) = nodes.get(*ent) else {
+            return Position::FAR;
+        };
+        Position::from(transform.translation()).tikz_coords()
+    };
+    for (_entity, &type_component, component_info, structure) in components {
         buf.push('\t');
-        let component_str = component.tikz_type();
-        if component.is_single() {
-            let pos = pos.tikz_coords();
-            if pos != last_pos {
-                buf.push_str(&format!("({pos}) "));
-            }
-            buf.push_str(&format!("node[{component_str}]"));
-            if id_map.contains_key(&ent) {
-                let name = &id_map[&ent];
-                buf.push_str(&format!("(E{name})"));
-            }
-            buf.push_str(&format!("{{{label}}}\n"));
-        } else {
-            let (y, x) = build_info.angle.sin_cos();
-            let offset = Position { x, y } * build_info.len / 2.0;
-            let (first_pos, final_pos) =
-                ((*pos - offset).tikz_coords(), (*pos + offset).tikz_coords());
-            if nodes_map.contains_key(&first_pos) {
-                let (id, label) = &nodes_map[&first_pos];
-                buf.push_str(&format!("(E{id}{label}) "));
-            } else if first_pos != last_pos {
-                buf.push_str(&format!("({first_pos}) "));
-            }
-            last_pos = final_pos;
-            if *component == Line && label.is_empty() {
-                buf.push_str("--");
-            } else {
-                buf.push_str(&format!("to[{component_str}"));
-                if !label.is_empty() {
-                    buf.push_str(&format!(", label={label}"));
+        match structure {
+            ComponentStructure::To([initial, fin]) => {
+                let (i_label, i_parent) = get_label_entity(initial);
+                let (f_label, f_parent) = get_label_entity(fin);
+                let i_pos = get_pos(initial);
+                let final_pos = get_pos(fin);
+                let diff = final_pos - i_pos;
+                if i_pos != l_pos {
+                    if !i_label.is_empty() {
+                        let id = parent_map
+                            .get(&i_parent)
+                            .expect("ERROR: Expected to have an id with children");
+                        buf.push_str(&format!("(E{id}{i_label})"));
+                    } else {
+                        buf.push_str(&format!("({i_pos})"));
+                    }
                 }
-                if *component == VSource {
-                    buf.push_str(", invert");
+                if type_component == TikzComponent::Line && component_info.is_empty() {
+                    buf.push_str(" --");
+                } else {
+                    buf.push_str(&format!("to[{}", type_component.tikz_type()));
+                    fill_component_info(&mut buf, component_info);
+                    if type_component == TikzComponent::VSource {
+                        buf.push_str(", invert")
+                    }
+                    buf.push(']');
                 }
+                if i_pos != l_pos {
+                    if !f_label.is_empty() {
+                        let id = parent_map
+                            .get(&f_parent)
+                            .expect("ERROR: Expected to have an id with children");
+                        buf.push_str(&format!("(E{id}{f_label})"));
+                    } else {
+                        buf.push_str(&format!("++ ({diff})"));
+                    }
+                }
+                l_pos = final_pos;
+            }
+            ComponentStructure::Node(node) => {
+                let Ok(transform) = nodes.get(*node) else {
+                    return;
+                };
+                let pos = Position::from(transform.translation()).tikz_coords();
+                let (label, entity) = get_label_entity(node);
+                info!("Node: {node}\nEntity: {entity}");
+                if pos != l_pos && label.is_empty() {
+                    if !label.is_empty() {
+                    } else {
+                        buf.push_str(&format!("({pos})"));
+                    }
+                }
+                buf.push_str(&format!("node[{}", type_component.tikz_type()));
+                fill_component_info(&mut buf, component_info);
                 buf.push(']');
-                if id_map.contains_key(&ent) {
-                    let name = &id_map[&ent];
-                    buf.push_str(&format!("(E{name})"));
+                if let Some(id) = &parent_map.get(node) {
+                    info!("Putting name on {entity}");
+                    buf.push_str(&format!("(E{id})"));
                 }
+                buf.push_str("{}");
             }
-            if nodes_map.contains_key(&final_pos) {
-                let (id, label) = &nodes_map[&final_pos];
-                buf.push_str(&format!(" (E{id}{label}) "));
-            } else {
-                let diff = final_pos - first_pos;
-                buf.push_str(&format!(" ++ ({diff})"));
-            }
-            buf.push('\n');
         }
-    }
-
-    for (_, _, build_info, pos, _) in lines {
-        buf.push('\t');
-        let (y, x) = build_info.angle.sin_cos();
-        let offset = Position { x, y } * build_info.len / 2.0;
-        let (first_pos, final_pos) = ((*pos - offset).tikz_coords(), (*pos + offset).tikz_coords());
-
-        if let Some((id, label)) = nodes_map.get(&first_pos) {
-            buf.push_str(&format!("(E{id}{label}) "));
-        } else {
-            buf.push_str(&format!("({first_pos}) "))
-        }
-
-        buf.push_str("--");
-
-        if let Some((id, label)) = nodes_map.get(&final_pos) {
-            buf.push_str(&format!(" (E{id}{label})"));
-        } else {
-            let diff = final_pos - first_pos;
-            buf.push_str(&format!(" ++ ({diff})"));
-        }
-
         buf.push('\n');
     }
     buf.push(';');
-    text.0.clone_from(&buf);
-    commands.trigger(UpdateFile(buf));
+    text.0 = buf;
+    commands.trigger(UpdateFile);
 }
 
-pub fn update_file(trigger: Trigger<UpdateFile>, file: Res<CurrentFile>) {
-    let UpdateFile(buf) = trigger.event();
+fn fill_component_info(buf: &mut String, component_info: &ComponentInfo) {
+    if !component_info.label.is_empty() {
+        buf.push_str(&format!(", label={}", component_info.label));
+    }
+
+    if component_info.scale != 1.0 {
+        buf.push_str(&format!(", scale={}", component_info.scale));
+    }
+}
+
+pub fn update_file(_: Trigger<UpdateFile>, file: Res<CurrentFile>, text: Res<CircuitText>) {
     let file = file.0.clone();
     let mut file = File::create(file).unwrap();
-    file.write_all(buf.as_bytes()).unwrap();
+    file.write_all(text.0.as_bytes()).unwrap();
 }
 
 #[derive(Event)]
-pub struct UpdateFile(String);
+pub struct UpdateFile;
 
 #[derive(Resource)]
 pub struct CurrentFile(pub String);

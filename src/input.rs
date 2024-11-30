@@ -9,64 +9,64 @@ use crate::*;
 
 pub fn handle_left_click(
     mut commands: Commands,
-    cursor: Res<CursorPosition>,
-    q_points: Query<(Entity, &Position, Has<Selected>), Without<FirstPos>>,
-    selected: Query<Entity, With<Selected>>,
+    cursor_position: Res<CursorPosition>,
+    marked_node: Query<(Entity, &GlobalTransform), With<Marker>>,
+    components: Query<(Entity, &GlobalTransform), With<TikzComponent>>,
+    selected: Query<(Entity, &GlobalTransform), With<Selected>>,
 ) {
-    if !cursor.within_grid() {
+    if !cursor_position.within_grid() {
         return;
     }
-
-    let mut selecting = false;
-    for (ent, pos, is_selected) in &q_points {
-        if cursor.close_to(pos) {
-            for sel in &selected {
-                commands.entity(sel).remove::<Selected>();
+    if let Ok((node_entity, node)) = marked_node.get_single() {
+        let node_pos = node.translation();
+        if let Ok(selected) = selected.get_single() {
+            commands.entity(selected.0).remove::<Selected>();
+            if node_pos == selected.1.translation() {
+                return;
             }
-            if is_selected {
-                commands.entity(ent).remove::<Selected>();
-            } else {
-                commands.entity(ent).insert(Selected);
+            for (component_entity, component_transform) in &components {
+                if component_transform.translation() == node_pos {
+                    commands.entity(component_entity).insert(Selected);
+                    return;
+                }
             }
-            selecting = true;
-            break;
+        } else {
+            for (component_entity, component_transform) in &components {
+                if component_transform.translation() == node_pos {
+                    commands.entity(component_entity).insert(Selected);
+                    return;
+                }
+            }
         }
-    }
-    if !selecting {
-        commands.trigger(InitiateComponent { pos: **cursor });
+        commands.trigger(InitiateComponent { pos: node_entity })
     }
 }
 
 pub fn on_initial_component(
     trigger: Trigger<InitiateComponent>,
     mut commands: Commands,
-    dots: Query<(Entity, &Position), With<FirstPos>>,
+    dots: Query<Entity, With<FirstPos>>,
     cc: Res<TikzComponent>,
-    rs: Res<State<RoundState>>,
+    transform_query: Query<&GlobalTransform>,
 ) {
     let InitiateComponent { pos } = trigger.event();
-    let pos = pos.round_on_state(&rs);
+    let transform = transform_query.get(*pos).unwrap();
     if let Ok(dot) = dots.get_single() {
-        if pos == *dot.1 {
+        let dot_pos = transform_query.get(dot).unwrap();
+        if transform == dot_pos {
             return;
         }
-        commands.entity(dot.0).despawn_recursive();
+        commands.entity(dot).remove::<FirstPos>();
         commands.trigger(CreateComponent {
-            initial: *dot.1,
-            fin: pos,
+            initial: dot,
+            fin: *pos,
         });
         commands.trigger(ConvertCircuit);
     } else if cc.is_single() {
-        commands.trigger(CreateSingleComponent { pos });
+        commands.trigger(CreateSingleComponent { node: *pos });
         commands.trigger(ConvertCircuit);
     } else {
-        let dot = Components::create_dot(
-            &mut commands,
-            pos,
-            Color::srgba(0.8, 0.5, 0.8, 1.0),
-            Vec3::new(5.0, 5.0, 1.0),
-        );
-        commands.entity(dot).insert(FirstPos);
+        commands.entity(*pos).insert(FirstPos);
     }
 }
 
@@ -75,27 +75,27 @@ pub fn on_create_single_component(
     mut commands: Commands,
     cc: Res<TikzComponent>,
     handles: Res<Handles>,
-    tikz_nodes: ResMut<TikzNodes>,
+    transform_query: Query<&GlobalTransform>,
 ) {
     use TikzComponent::*;
-    let CreateSingleComponent { pos } = trigger.event();
+    let CreateSingleComponent { node } = trigger.event();
+    let pos = Position::from(transform_query.get(*node).unwrap().translation());
     let id = match *cc {
         Dot => Components::create_dot(
             &mut commands,
-            *pos,
+            pos,
             Color::Srgba(Srgba::RED),
             Vec3::new(8.0, 8.0, 1.0),
         ),
-        Ground => Components::create_with_mesh(&mut commands, handles, *pos, *pos, *cc),
-        x if x.is_gate() => {
-            Components::create_gate(&mut commands, handles, *pos, *pos, *cc, tikz_nodes)
-        }
+        Ground => Components::create_with_mesh(&mut commands, handles, pos, pos, *cc),
+        x if x.is_gate() => Components::create_gate(&mut commands, handles, pos, pos, *cc),
         _ => unreachable!(),
     };
     commands
         .entity(id)
-        .insert(*pos)
+        .insert(pos)
         .insert(*cc)
+        .insert(ComponentStructure::Node(*node))
         .insert(BuildInfo {
             angle: 0.0,
             len: 0.0,
@@ -107,21 +107,25 @@ pub fn on_create_component(
     mut commands: Commands,
     cc: Res<TikzComponent>,
     handles: Res<Handles>,
+    transform_query: Query<&GlobalTransform>,
 ) {
     let CreateComponent { initial, fin } = trigger.event();
-    let middle = (*initial + *fin) / 2.0;
-    let len = (*fin - *initial).len();
-    let angle = (fin.y - initial.y).atan2(fin.x - initial.x);
+    let initial_pos = Position::from(transform_query.get(*initial).unwrap().translation());
+    let final_pos = Position::from(transform_query.get(*fin).unwrap().translation());
+    let middle = (initial_pos + final_pos) / 2.0;
+    let len = (final_pos - initial_pos).len();
+    let angle = (final_pos.y - initial_pos.y).atan2(final_pos.x - initial_pos.x);
     let component = match *cc {
         TikzComponent::Line => {
             Components::create_line(&mut commands, middle, angle, Color::WHITE, len)
         }
-        _ => Components::create_with_mesh(&mut commands, handles, *initial, *fin, *cc),
+        _ => Components::create_with_mesh(&mut commands, handles, initial_pos, final_pos, *cc),
     };
     commands
         .entity(component)
         .insert(*cc)
         .insert(middle)
+        .insert(ComponentStructure::To([*initial, *fin]))
         .insert(BuildInfo { angle, len });
 }
 
@@ -146,9 +150,6 @@ pub fn change_current_component(
     keys: Res<ButtonInput<KeyCode>>,
     mut cc: ResMut<TikzComponent>,
     mut exit: EventWriter<AppExit>,
-
-    mut next_round_state: ResMut<NextState<RoundState>>,
-    rs: Res<State<RoundState>>,
 ) {
     if egui_context.ctx_mut().wants_keyboard_input() {
         return;
@@ -159,14 +160,6 @@ pub fn change_current_component(
 
     if *key_map == KeyCode::KeyQ {
         exit.send(AppExit::Success);
-        return;
-    }
-
-    if *key_map == KeyCode::NumpadAdd {
-        next_round_state.set(match rs.get() {
-            RoundState::Round => RoundState::NoRound,
-            RoundState::NoRound => RoundState::Round,
-        });
         return;
     }
 
