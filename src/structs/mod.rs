@@ -1,59 +1,38 @@
 use crate::*;
-use bevy::ecs::component::{ComponentHooks, StorageType};
 
-mod component_stuff;
+use bevy::ecs::{component::ComponentId, world::DeferredWorld};
+mod anchor;
+mod cursor_position;
+mod first_pos;
 mod mark_node;
 mod position;
+mod select_node;
 mod tikz_component;
 
-pub use component_stuff::*;
+pub use anchor::*;
+pub use cursor_position::*;
+pub use first_pos::*;
 pub use mark_node::*;
 pub use position::*;
+pub use select_node::*;
 pub use tikz_component::*;
 
 #[derive(Resource)]
 pub struct CircuitText(pub String);
 
-#[derive(Clone, Copy)]
-pub struct FirstPos;
-
-impl Component for FirstPos {
-    const STORAGE_TYPE: StorageType = StorageType::Table;
-
-    fn register_component_hooks(hooks: &mut ComponentHooks) {
-        const SCALE: f32 = 3.0;
-        hooks.on_add(|mut world, entity, _| {
-            if world.get::<Selected>(entity).is_none() && world.get::<Marker>(entity).is_none() {
-                let Some(mut transform) = world.get_mut::<Transform>(entity) else {
-                    error!("Hook on non-existing entity");
-                    return;
-                };
-                transform.scale *= SCALE;
-            }
-        });
-
-        hooks.on_remove(|mut world, entity, _| {
-            if world.get::<Selected>(entity).is_none() && world.get::<Marker>(entity).is_none() {
-                let Some(mut transform) = world.get_mut::<Transform>(entity) else {
-                    error!("Hook on non-existing entity");
-                    return;
-                };
-                transform.scale /= SCALE;
-            }
-        });
-    }
-}
-
-#[derive(Event)]
-pub struct ConvertCircuit;
-
 #[derive(Event)]
 pub struct DeleteAll;
 
-#[derive(Component, Clone, Copy)]
+#[derive(Component, Clone, Copy, Default)]
 pub struct BuildInfo {
     pub angle: f32,
     pub len: f32,
+}
+
+impl BuildInfo {
+    pub fn new(angle: f32, len: f32) -> Self {
+        Self { angle, len }
+    }
 }
 
 impl std::fmt::Display for BuildInfo {
@@ -62,25 +41,48 @@ impl std::fmt::Display for BuildInfo {
     }
 }
 
-#[derive(Event)]
-pub struct DeleteComponent;
-
-#[derive(Event)]
-pub struct UpdateLabel(pub String);
-
+// NOTE:This label is what appear in the circuit
 #[derive(Component)]
-pub struct ComponentInfo {
+#[component(on_insert = on_insert_hook)]
+pub struct Info {
     pub label: String,
     pub scale: f32,
 }
 
-impl ComponentInfo {
-    pub fn is_empty(&self) -> bool {
-        self.label.is_empty() && self.scale == 1.0
+// NOTE: This considers that the "label" or "text" entity is the first child.
+fn on_insert_hook(mut world: DeferredWorld, entity: Entity, _component: ComponentId) {
+    let Some(children) = world.entity(entity).get::<Children>() else {
+        return;
+    };
+
+    let text_ent = children[0];
+    let new_text = Text2d::new(world.get::<Info>(entity).unwrap().label.clone());
+    if let Some(mut text) = world.get_mut::<Text2d>(text_ent) {
+        *text = new_text;
     }
 }
 
-impl Default for ComponentInfo {
+impl Info {
+    pub fn is_empty(&self) -> bool {
+        self.label.is_empty() && self.scale == 1.0
+    }
+
+    pub fn from_label(label: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+            ..Default::default()
+        }
+    }
+
+    pub fn from_scale(scale: impl Into<f32>) -> Self {
+        Self {
+            scale: scale.into(),
+            ..Default::default()
+        }
+    }
+}
+
+impl Default for Info {
     fn default() -> Self {
         Self {
             label: Default::default(),
@@ -91,7 +93,7 @@ impl Default for ComponentInfo {
 
 #[derive(Event)]
 pub struct InitiateComponent {
-    pub pos: Entity,
+    pub ent: Entity,
 }
 
 #[derive(Event)]
@@ -100,32 +102,13 @@ pub struct CreateComponent {
     pub fin: Entity,
 }
 
+impl CreateComponent {
+    pub fn new(initial: Entity, fin: Entity) -> Self {
+        Self { initial, fin }
+    }
+}
+
 #[derive(Event)]
 pub struct CreateSingleComponent {
     pub node: Entity,
-}
-
-pub struct Selected;
-
-impl Component for Selected {
-    const STORAGE_TYPE: StorageType = StorageType::Table;
-
-    fn register_component_hooks(hooks: &mut ComponentHooks) {
-        hooks.on_add(|mut world, entity, _| {
-            let Some(mut transform) = world.get_mut::<Transform>(entity) else {
-                error!("Hook on non-existing entity");
-                return;
-            };
-            transform.scale *= 1.05;
-            world.commands().trigger(ConvertCircuit);
-        });
-        hooks.on_remove(|mut world, entity, _| {
-            let Some(mut transform) = world.get_mut::<Transform>(entity) else {
-                error!("Hook on non-existing entity");
-                return;
-            };
-            transform.scale /= 1.05;
-            world.commands().trigger(ConvertCircuit);
-        });
-    }
 }

@@ -2,6 +2,9 @@ use core::f32;
 
 use crate::*;
 
+#[derive(Component)]
+pub struct Markable;
+
 pub struct Marker;
 
 impl Component for Marker {
@@ -35,23 +38,29 @@ impl Component for Marker {
     }
 }
 
-#[allow(clippy::complexity)]
 pub fn mark_node(
     mut commands: Commands,
-    q_nodes: Query<(Entity, &GlobalTransform), With<TikzNode>>,
+    q_nodes: Query<(Entity, &GlobalTransform), With<Markable>>,
     cursor_pos: Res<CursorPosition>,
     marker: Query<Entity, With<Marker>>,
 ) {
-    let cursor = cursor_pos.0;
-    let mut closest = f32::MAX;
-    let mut closest_entity = Entity::PLACEHOLDER;
-    for (ent, node) in &q_nodes {
-        let pos = Position::from(node.translation());
-        if cursor.distance(&pos) - closest < f32::EPSILON {
-            closest = cursor.distance(&pos);
-            closest_entity = ent;
-        }
-    }
+    let cursor = cursor_pos.pos;
+
+    let closest_entity = q_nodes
+        .iter()
+        .fold(
+            (Entity::PLACEHOLDER, f32::MAX),
+            |(closest_ent, closest_dist), (node_ent, node_transform)| {
+                let node_pos = Position::from(node_transform.translation());
+                let dist = cursor.distance(&node_pos);
+                if dist < closest_dist {
+                    (node_ent, dist)
+                } else {
+                    (closest_ent, closest_dist)
+                }
+            },
+        )
+        .0;
 
     if closest_entity != Entity::PLACEHOLDER {
         if let Ok(entity) = marker.get_single() {

@@ -1,8 +1,7 @@
 use bevy::app::AppExit;
-use components::{Components, Handles};
 use structs::{
-    BuildInfo, CreateComponent, CreateSingleComponent, DeleteAll, DeleteComponent, FirstPos,
-    InitiateComponent, Position, Selected,
+    BuildInfo, CreateComponent, CreateSingleComponent, DeleteAll, FirstPos, InitiateComponent,
+    Position, Selected,
 };
 
 use crate::*;
@@ -10,36 +9,28 @@ use crate::*;
 pub fn handle_left_click(
     mut commands: Commands,
     cursor_position: Res<CursorPosition>,
-    marked_node: Query<(Entity, &GlobalTransform), With<Marker>>,
-    components: Query<(Entity, &GlobalTransform), With<TikzComponent>>,
+    marked_node: Single<Entity, With<Marker>>,
+    selectable: Query<(Entity, &GlobalTransform), With<Selectable>>,
     selected: Query<(Entity, &GlobalTransform), With<Selected>>,
 ) {
-    if !cursor_position.within_grid() {
+    if !cursor_position.within_grid {
         return;
     }
-    if let Ok((node_entity, node)) = marked_node.get_single() {
-        let node_pos = node.translation();
-        if let Ok(selected) = selected.get_single() {
-            commands.entity(selected.0).remove::<Selected>();
-            if node_pos == selected.1.translation() {
-                return;
-            }
-            for (component_entity, component_transform) in &components {
-                if component_transform.translation() == node_pos {
-                    commands.entity(component_entity).insert(Selected);
-                    return;
-                }
-            }
-        } else {
-            for (component_entity, component_transform) in &components {
-                if component_transform.translation() == node_pos {
-                    commands.entity(component_entity).insert(Selected);
-                    return;
-                }
-            }
+    let node_entity = *marked_node;
+    let cursor = cursor_position.pos;
+    if let Ok((selected_entity, selected_transform)) = selected.get_single() {
+        commands.entity(selected_entity).remove::<Selected>();
+        if cursor.close_to(selected_transform.translation()) {
+            return;
         }
-        commands.trigger(InitiateComponent { pos: node_entity })
     }
+    for (ent, transform) in &selectable {
+        if cursor.close_to(transform.translation()) {
+            commands.entity(ent).insert(Selected);
+            return;
+        }
+    }
+    commands.trigger(InitiateComponent { ent: node_entity })
 }
 
 pub fn on_initial_component(
@@ -49,25 +40,29 @@ pub fn on_initial_component(
     cc: Res<TikzComponent>,
     transform_query: Query<&GlobalTransform>,
 ) {
-    let InitiateComponent { pos } = trigger.event();
-    let transform = transform_query.get(*pos).unwrap();
-    if let Ok(dot) = dots.get_single() {
-        let dot_pos = transform_query.get(dot).unwrap();
-        if transform == dot_pos {
-            return;
-        }
-        commands.entity(dot).remove::<FirstPos>();
-        commands.trigger(CreateComponent {
-            initial: dot,
-            fin: *pos,
-        });
+    let InitiateComponent { ent } = trigger.event();
+    let transform = transform_query.get(*ent).unwrap();
+
+    if cc.is_single() {
+        commands.trigger(CreateSingleComponent { node: *ent });
         commands.trigger(ConvertCircuit);
-    } else if cc.is_single() {
-        commands.trigger(CreateSingleComponent { node: *pos });
-        commands.trigger(ConvertCircuit);
-    } else {
-        commands.entity(*pos).insert(FirstPos);
+        return;
     }
+
+    let Ok(dot_ent) = dots.get_single() else {
+        commands.entity(*ent).insert(FirstPos);
+        return;
+    };
+
+    let dot_pos = transform_query.get(dot_ent).unwrap();
+    commands.entity(dot_ent).remove::<FirstPos>();
+
+    if transform == dot_pos {
+        return;
+    }
+
+    commands.trigger(CreateComponent::new(dot_ent, *ent));
+    commands.trigger(ConvertCircuit);
 }
 
 pub fn on_create_single_component(
@@ -81,25 +76,25 @@ pub fn on_create_single_component(
     let CreateSingleComponent { node } = trigger.event();
     let pos = Position::from(transform_query.get(*node).unwrap().translation());
     let id = match *cc {
-        Dot => Components::create_dot(
+        Dot => create_dot(
             &mut commands,
             pos,
-            Color::Srgba(Srgba::RED),
-            Vec3::new(8.0, 8.0, 1.0),
+            Color::Srgba(Srgba::gray(0.5)),
+            Vec3::new(6.0, 6.0, 1.0),
         ),
-        Ground => Components::create_with_mesh(&mut commands, handles, pos, pos, *cc),
-        x if x.is_gate() => Components::create_gate(&mut commands, handles, pos, pos, *cc),
+        Ground => create_with_mesh(&mut commands, handles, pos, pos, *cc, 1.5 * GRID_SIZE),
+        x if x.is_gate() => create_gate(&mut commands, handles, pos, pos, *cc),
         _ => unreachable!(),
     };
-    commands
-        .entity(id)
-        .insert(pos)
-        .insert(*cc)
-        .insert(ComponentStructure::Node(*node))
-        .insert(BuildInfo {
-            angle: 0.0,
-            len: 0.0,
-        });
+    commands.entity(id).insert((
+        *cc,
+        Selectable,
+        ComponentStructure::Node(pos.round()),
+        ComponentLabel {
+            label: "".to_string(),
+        },
+        Anchored(pos),
+    ));
 }
 
 pub fn on_create_component(
@@ -116,23 +111,27 @@ pub fn on_create_component(
     let len = (final_pos - initial_pos).len();
     let angle = (final_pos.y - initial_pos.y).atan2(final_pos.x - initial_pos.x);
     let component = match *cc {
-        TikzComponent::Line => {
-            Components::create_line(&mut commands, middle, angle, Color::WHITE, len)
-        }
-        _ => Components::create_with_mesh(&mut commands, handles, initial_pos, final_pos, *cc),
+        x if x.is_single() => return,
+        TikzComponent::Line => create_line(&mut commands, middle, angle, Color::WHITE, len),
+        _ => create_with_mesh(
+            &mut commands,
+            handles,
+            initial_pos,
+            final_pos,
+            *cc,
+            1.5 * GRID_SIZE,
+        ),
     };
-    commands
-        .entity(component)
-        .insert(*cc)
-        .insert(middle)
-        .insert(ComponentStructure::To([*initial, *fin]))
-        .insert(BuildInfo { angle, len });
-}
-
-pub fn despawn_selected(mut commands: Commands, selected: Query<Entity, With<Selected>>) {
-    if let Ok(entity) = selected.get_single() {
-        commands.trigger_targets(DeleteComponent, entity);
-    }
+    commands.entity(component).insert((
+        *cc,
+        Selectable,
+        ComponentStructure::To([initial_pos.round(), final_pos.round()]),
+        ComponentLabel {
+            label: "".to_string(),
+        },
+        Anchored(initial_pos),
+        BuildInfo::new(angle, len),
+    ));
 }
 
 type Filter = (Without<FirstPos>, With<TikzComponent>);
@@ -144,7 +143,6 @@ pub fn remove_all(_: Trigger<DeleteAll>, mut commands: Commands, q_points: Query
     commands.trigger_targets(DeleteComponent, entities)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn change_current_component(
     mut egui_context: EguiContexts,
     keys: Res<ButtonInput<KeyCode>>,

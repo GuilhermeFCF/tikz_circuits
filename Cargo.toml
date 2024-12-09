@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = {version = "0.14", default-features = false, features = [
+bevy = {version = "0.15", default-features = false, features = [
 	"bevy_asset",
 	"bevy_sprite",
 	"bevy_ui",
@@ -13,8 +13,9 @@ bevy = {version = "0.14", default-features = false, features = [
 	"png",
 	"default_font",
 	"dynamic_linking",
+	"bevy_window"
 ]}
-bevy_egui = "0.28"
+bevy_egui = "0.31"
 derive_more = "0.99.18"
 
 [profile.dev.package."*"]

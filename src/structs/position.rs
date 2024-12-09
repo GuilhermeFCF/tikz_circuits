@@ -22,18 +22,24 @@ impl Position {
         x: -100.0,
         y: -100.0,
     };
+
+    pub fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
     pub fn len(&self) -> f32 {
         (self.x * self.x + self.y * self.y).sqrt()
     }
-    pub fn within_grid(&self) -> bool {
-        const HALF_SIZE: f32 = GRID_SIZE * GRID_COUNT as f32 / 2.0;
-        let range_y = -HALF_SIZE..=HALF_SIZE;
-        let range_x = -HALF_SIZE + 160.0..=HALF_SIZE + 160.0;
-        range_x.contains(&self.x) && range_y.contains(&self.y)
+
+    const HALF_SIZE: f32 = GRID_SIZE * GRID_COUNT as f32 / 2.0;
+    pub const fn within_grid(&self) -> bool {
+        self.x >= (-Self::HALF_SIZE + 160.0)
+            && self.x <= (Self::HALF_SIZE + 160.0)
+            && self.y >= -Self::HALF_SIZE
+            && self.y <= Self::HALF_SIZE
     }
 
-    pub fn close_to(&self, other: &Self) -> bool {
-        self.distance(other) < GRID_SIZE / 3.0
+    pub fn close_to(&self, other: impl Into<Self>) -> bool {
+        self.distance(&other.into()) < GRID_SIZE / 2.0
     }
 
     pub fn distance(&self, other: &Self) -> f32 {
@@ -51,9 +57,17 @@ impl Position {
         }
     }
 
+    pub fn round_to_tuple(&self) -> (isize, isize) {
+        (
+            ((self.x * 1000.0).round() / 1000.0) as isize,
+            ((self.y * 1000.0).round() / 1000.0) as isize,
+        )
+    }
+
     pub fn tikz_coords(&self) -> Self {
-        let mut x = ((self.x / GRID_SIZE) * 50.0).round() / 100.0;
-        let mut y = ((self.y / GRID_SIZE) * 50.0).round() / 100.0;
+        let mut x = self.x / (2.0 * GRID_SIZE);
+        let mut y = self.y / (2.0 * GRID_SIZE);
+        info!("x: {x} y: {y}");
         if x == -0.0 {
             x = 0.0;
         }
@@ -61,6 +75,14 @@ impl Position {
             y = 0.0;
         }
         Self { x, y }
+    }
+
+    pub fn walk(&self, angle: f32, len: f32) -> Self {
+        *self
+            + Self {
+                x: angle.cos() * len,
+                y: angle.sin() * len,
+            }
     }
 }
 

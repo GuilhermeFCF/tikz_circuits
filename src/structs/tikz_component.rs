@@ -1,5 +1,29 @@
-use bevy::prelude::*;
-#[allow(dead_code)]
+use super::Position;
+use super::UpdateComponentLabel;
+use bevy::{
+    ecs::{component::ComponentId, world::DeferredWorld},
+    prelude::*,
+};
+
+// NOTE:This label is to call the "coordinate" of that component.
+#[derive(Component)]
+#[component(on_add = hook)]
+#[component(on_remove = hook)]
+pub struct ComponentLabel {
+    pub label: String,
+}
+
+fn hook(mut world: DeferredWorld, _: Entity, _component_id: ComponentId) {
+    world.trigger::<UpdateComponentLabel>(UpdateComponentLabel);
+}
+
+/// Entity should contain a tikz node component and a global position.
+#[derive(Component, Debug)]
+pub enum ComponentStructure {
+    Node(Position),
+    To([Position; 2]),
+}
+
 #[derive(Debug, PartialEq, Hash, PartialOrd, Ord, Eq, Component, Copy, Clone, Resource)]
 pub enum TikzComponent {
     AndGate,

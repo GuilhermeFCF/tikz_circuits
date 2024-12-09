@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_egui::{
-    egui::{Align, Layout, ScrollArea, SidePanel, TextEdit},
+    egui::{Align, Layout, ScrollArea, SidePanel, TextEdit, Window},
     EguiClipboard, EguiContexts,
 };
 
@@ -11,7 +11,7 @@ pub fn ui_system(
     mut contexts: EguiContexts,
     mut clipboard: ResMut<EguiClipboard>,
     mut cc: ResMut<TikzComponent>,
-    mut selected: Query<(Entity, &mut ComponentInfo, &TikzComponent), With<Selected>>,
+    mut selected: Query<(Entity, &mut Info, &TikzComponent), With<Selected>>,
     circuit: Res<CircuitText>,
 ) {
     let center = Layout::top_down(Align::Center);
@@ -58,24 +58,12 @@ pub fn ui_system(
 
             ui.separator();
             ui.vertical_centered(|ui| {
-                if let Ok((ent, mut info, selected_type)) = selected.get_single_mut() {
-                    ui.separator();
-                    ui.label(format!("Componente selecionado: {selected_type}"));
-                    let response =
-                        ui.add(TextEdit::singleline(&mut info.label).hint_text("Insira o nome!"));
-                    if response.lost_focus() {
-                        commands.trigger_targets(UpdateLabel(info.label.clone()), ent);
-                    }
-                    if ui.button("Deletar").double_clicked() {
-                        commands.trigger_targets(DeleteComponent, ent);
-                    }
-                }
                 if ui.button("Limpar circuito").double_clicked() {
                     commands.trigger(DeleteAll);
                 }
             });
-            if !circuit.0.is_empty() {
-                ScrollArea::vertical().show(ui, |ui| {
+            ScrollArea::vertical().show(ui, |ui| {
+                if !circuit.0.is_empty() {
                     ui.separator();
                     ui.label(circuit.0.clone());
                     ui.with_layout(center, |ui| {
@@ -84,7 +72,23 @@ pub fn ui_system(
                         }
                     });
                     ui.separator();
-                });
-            }
+                }
+            });
         });
+    if let Ok((ent, mut info, selected_type)) = selected.get_single_mut() {
+        Window::new(selected_type.to_string())
+            .max_width(96.0)
+            .show(contexts.ctx_mut(), |ui| {
+                let response =
+                    ui.add(TextEdit::singleline(&mut info.label).hint_text("Insira o nome!"));
+                if response.lost_focus() {
+                    commands.trigger_targets(UpdateLabel::new(info.label.clone()), ent);
+                }
+                ui.vertical_centered(|ui| {
+                    if ui.button("Deletar").clicked() {
+                        commands.trigger_targets(DeleteComponent, ent);
+                    }
+                });
+            });
+    }
 }
