@@ -70,6 +70,7 @@ pub fn on_create_single_component(
     mut commands: Commands,
     cc: Res<TikzComponent>,
     handles: Res<Handles>,
+    material: ResMut<Assets<ColorMaterial>>,
     transform_query: Query<&GlobalTransform>,
 ) {
     use TikzComponent::*;
@@ -82,8 +83,24 @@ pub fn on_create_single_component(
             Color::Srgba(Srgba::gray(0.5)),
             Vec3::new(6.0, 6.0, 1.0),
         ),
-        Ground => create_with_mesh(&mut commands, handles, pos, pos, *cc, 1.5 * GRID_SIZE),
-        x if x.is_gate() => create_gate(&mut commands, handles, pos, pos, *cc),
+        Ground => create_with_mesh(
+            &mut commands,
+            handles,
+            material,
+            pos,
+            pos,
+            *cc,
+            1.5 * GRID_SIZE,
+        ),
+        x if x.is_gate() => create_with_mesh(
+            &mut commands,
+            handles,
+            material,
+            pos,
+            pos,
+            *cc,
+            2f32 * GRID_SIZE,
+        ),
         _ => unreachable!(),
     };
     commands.entity(id).insert((
@@ -102,6 +119,7 @@ pub fn on_create_component(
     mut commands: Commands,
     cc: Res<TikzComponent>,
     handles: Res<Handles>,
+    material: ResMut<Assets<ColorMaterial>>,
     transform_query: Query<&GlobalTransform>,
 ) {
     let CreateComponent { initial, fin } = trigger.event();
@@ -112,10 +130,11 @@ pub fn on_create_component(
     let angle = (final_pos.y - initial_pos.y).atan2(final_pos.x - initial_pos.x);
     let component = match *cc {
         x if x.is_single() => return,
-        TikzComponent::Line => create_line(&mut commands, middle, angle, Color::WHITE, len),
+        TikzComponent::Line => create_line(&mut commands, middle, angle, len),
         _ => create_with_mesh(
             &mut commands,
             handles,
+            material,
             initial_pos,
             final_pos,
             *cc,

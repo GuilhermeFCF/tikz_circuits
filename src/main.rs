@@ -25,6 +25,7 @@ const GRID_COUNT: u32 = 40;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        // .add_plugins(MeshPickingPlugin)
         .add_plugins(EguiPlugin)
         .insert_resource(TikzComponent::Resistor)
         .insert_resource(CursorPosition::default())
@@ -88,7 +89,7 @@ fn setup(mut commands: Commands) {
             let y = y_i as f32 * GRID_SIZE - OFFSET;
             commands.spawn((
                 Sprite::default(),
-                Transform::from_xyz(x, y, 0.0).with_scale(Vec3::splat(1.0)),
+                Transform::from_xyz(x, y, -10.0).with_scale(Vec3::splat(1.0)),
                 Markable,
             ));
         }

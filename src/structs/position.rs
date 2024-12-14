@@ -67,7 +67,6 @@ impl Position {
     pub fn tikz_coords(&self) -> Self {
         let mut x = self.x / (2.0 * GRID_SIZE);
         let mut y = self.y / (2.0 * GRID_SIZE);
-        info!("x: {x} y: {y}");
         if x == -0.0 {
             x = 0.0;
         }

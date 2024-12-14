@@ -13,7 +13,7 @@ bevy = {version = "0.15", default-features = false, features = [
 	"png",
 	"default_font",
 	"dynamic_linking",
-	"bevy_window"
+	"bevy_window",
 ]}
 bevy_egui = "0.31"
 derive_more = "0.99.18"
