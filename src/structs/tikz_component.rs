@@ -1,4 +1,3 @@
-use super::Position;
 use super::UpdateComponentLabel;
 use bevy::{
     ecs::{component::ComponentId, world::DeferredWorld},
@@ -18,10 +17,10 @@ fn hook(mut world: DeferredWorld, _: Entity, _component_id: ComponentId) {
 }
 
 /// Entity should contain a tikz node component and a global position.
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Copy, Clone)]
 pub enum ComponentStructure {
-    Node(Position),
-    To([Position; 2]),
+    Node(Vec2),
+    To([Vec2; 2]),
 }
 
 #[derive(Debug, PartialEq, Hash, PartialOrd, Ord, Eq, Component, Copy, Clone, Resource)]

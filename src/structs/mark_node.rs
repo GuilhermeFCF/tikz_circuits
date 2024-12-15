@@ -51,8 +51,8 @@ pub fn mark_node(
         .fold(
             (Entity::PLACEHOLDER, f32::MAX),
             |(closest_ent, closest_dist), (node_ent, node_transform)| {
-                let node_pos = Position::from(node_transform.translation());
-                let dist = cursor.distance(&node_pos);
+                let node_pos = node_transform.translation().truncate();
+                let dist = cursor.distance(node_pos);
                 if dist < closest_dist {
                     (node_ent, dist)
                 } else {

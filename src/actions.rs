@@ -1,4 +1,5 @@
 use bevy::utils::HashMap;
+use graph::RemoveFromGraph;
 
 use crate::*;
 
@@ -10,7 +11,7 @@ pub fn move_entity(
 ) {
     commands
         .entity(*component)
-        .insert(Anchored(marked.translation().into()));
+        .insert(Anchored(marked.translation().truncate()));
 }
 
 #[derive(Event)]
@@ -37,6 +38,7 @@ pub struct DeleteComponent;
 pub fn delete_component(trigger: Trigger<DeleteComponent>, mut commands: Commands) {
     commands.entity(trigger.entity()).despawn_recursive();
     commands.trigger(ConvertCircuit);
+    commands.trigger(RemoveFromGraph(trigger.entity()));
 }
 
 #[derive(Event)]

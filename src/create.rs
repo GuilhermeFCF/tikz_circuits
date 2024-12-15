@@ -19,14 +19,14 @@ pub fn create(
     for (child_transform, parent, child_label) in &children {
         let parent_label = parents.get(**parent).unwrap();
         pos_label.insert(
-            Position::from(child_transform.translation()).round_to_tuple(),
+            Position::from_vec2(child_transform.translation().truncate()),
             format!("({}{})", parent_label.label, child_label.label),
         );
     }
-    let mut pos_map = HashMap::<(isize, isize), u32>::new();
-    let mut insert_on_map = |pos: &Position| {
+    let mut pos_map = HashMap::new();
+    let mut insert_on_map = |pos: Position| {
         pos_map
-            .entry(pos.tikz_coords().round_to_tuple())
+            .entry(pos)
             .and_modify(|seen| *seen += 1)
             .or_insert(1);
     };
@@ -34,11 +34,11 @@ pub fn create(
     for (_, component, _, _) in components.iter() {
         match component {
             ComponentStructure::Node(position) => {
-                insert_on_map(position);
+                insert_on_map(Position::from_vec2(*position));
             }
             ComponentStructure::To([initial, fin]) => {
-                insert_on_map(initial);
-                insert_on_map(fin);
+                insert_on_map(Position::from_vec2(*initial));
+                insert_on_map(Position::from_vec2(*fin));
             }
         }
     }
@@ -52,17 +52,19 @@ pub fn create(
     {
         let label = format!("(A{})", i + 1);
         pos_label.insert(coord, label.clone());
+        let coord = coord.tikz_coords();
         buffer.push_str(&format!(
             "\t({}, {}) coordinate {label}\n",
-            coord.0, coord.1
+            coord.x, coord.y
         ));
     }
 
-    let map_to_label = |pos: (isize, isize)| -> String {
-        if let Some(label) = pos_label.get(&pos) {
+    let map_to_label = |pos: &Position| -> String {
+        if let Some(label) = pos_label.get(pos) {
             label.to_string()
         } else {
-            format!("({}, {})", pos.0, pos.1)
+            let pos = pos.tikz_coords();
+            format!("({}, {})", pos.x, pos.y)
         }
     };
 
@@ -70,21 +72,24 @@ pub fn create(
         let parent_label = parents.get(ent).unwrap();
         match component {
             ComponentStructure::Node(position) => {
+                let position = &Position::from_vec2(*position);
                 buffer.push_str(&format!(
                     "\t{label} node[{c_type}{c_info}]{c_label}{{}}\n",
-                    label = map_to_label(position.round_to_tuple()),
+                    label = map_to_label(position),
                     c_type = c_type.tikz_type(),
                     c_info = get_component_info(info),
                     c_label = get_component_label(parent_label)
                 ));
             }
             ComponentStructure::To([initial, fin]) => {
+                let initial = &Position::from_vec2(*initial);
+                let fin = &Position::from_vec2(*fin);
                 buffer.push_str(&format!(
                     "\t{label} to[{c_type}{c_info}] {final_label}\n",
-                    label = map_to_label(initial.round_to_tuple()),
+                    label = map_to_label(initial),
                     c_type = c_type.tikz_type(),
                     c_info = get_component_info(info),
-                    final_label = map_to_label(fin.round_to_tuple()),
+                    final_label = map_to_label(fin),
                 ));
             }
         }

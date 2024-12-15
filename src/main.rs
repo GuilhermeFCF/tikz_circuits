@@ -8,6 +8,7 @@ use bevy_egui::{EguiContexts, EguiPlugin};
 mod actions;
 mod components;
 mod create;
+mod graph;
 mod input;
 mod structs;
 mod ui;
@@ -21,6 +22,7 @@ pub use ui::*;
 
 const GRID_SIZE: f32 = 16.0;
 const GRID_COUNT: u32 = 40;
+const OFFSET: f32 = GRID_COUNT as f32 * GRID_SIZE / 2.0;
 
 fn main() {
     App::new()
@@ -33,6 +35,7 @@ fn main() {
         .insert_resource(CurrentFile(
             "/home/guilherme/projects/circuits/test.tex".to_string(),
         ))
+        .add_plugins(graph::GraphPlugin)
         .add_systems(
             Update,
             (
@@ -82,7 +85,6 @@ fn setup(mut commands: Commands) {
     commands.spawn(Camera2d);
 
     // Rendering default nodes
-    const OFFSET: f32 = GRID_COUNT as f32 * GRID_SIZE / 2.0;
     for x_i in 0..GRID_COUNT {
         for y_i in 0..GRID_COUNT {
             let x = x_i as f32 * GRID_SIZE - OFFSET + 160.;

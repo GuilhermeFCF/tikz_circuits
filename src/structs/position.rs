@@ -4,134 +4,84 @@ use crate::{GRID_COUNT, GRID_SIZE};
 
 // use super::RoundState;
 
-#[derive(Debug, Default, Component, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Eq, PartialOrd, Ord, Hash, Component, Clone, Copy, PartialEq)]
 pub struct Position {
-    pub x: f32,
-    pub y: f32,
-}
-
-impl std::hash::Hash for Position {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        (((self.x) * 100.0) as i32).hash(state);
-        (((self.y) * 100.0) as i32).hash(state);
-    }
+    pub x: isize,
+    pub y: isize,
 }
 
 impl Position {
-    pub const FAR: Self = Self {
-        x: -100.0,
-        y: -100.0,
-    };
+    pub const FAR: Self = Self { x: -100, y: -100 };
 
-    pub fn new(x: f32, y: f32) -> Self {
+    pub fn new(x: isize, y: isize) -> Self {
         Self { x, y }
     }
-    pub fn len(&self) -> f32 {
-        (self.x * self.x + self.y * self.y).sqrt()
+    // pub fn len(&self) -> isize {
+    //     (self.x * self.x + self.y * self.y).sqrt()
+    // }
+
+    pub fn sq_len(&self) -> isize {
+        self.x * self.x + self.y * self.y
     }
 
-    const HALF_SIZE: f32 = GRID_SIZE * GRID_COUNT as f32 / 2.0;
+    const HALF_SIZE: isize = GRID_SIZE as isize * GRID_COUNT as isize / 2;
     pub const fn within_grid(&self) -> bool {
-        self.x >= (-Self::HALF_SIZE + 160.0)
-            && self.x <= (Self::HALF_SIZE + 160.0)
+        self.x >= (-Self::HALF_SIZE + 160)
+            && self.x <= (Self::HALF_SIZE + 160)
             && self.y >= -Self::HALF_SIZE
             && self.y <= Self::HALF_SIZE
     }
 
     pub fn close_to(&self, other: impl Into<Self>) -> bool {
-        self.distance(&other.into()) < GRID_SIZE / 2.0
+        self.sq_distance(&other.into()) < GRID_SIZE as isize / 2
     }
 
-    pub fn distance(&self, other: &Self) -> f32 {
-        (*self - *other).len()
+    pub fn sq_distance(&self, other: &Self) -> isize {
+        (*self - *other).sq_len()
     }
 
-    pub fn is_round(&self) -> bool {
-        *self == self.round()
-    }
+    // pub fn is_round(&self) -> bool {
+    //     *self == self.round()
+    // }
 
-    pub fn round(&self) -> Self {
-        Self {
-            x: (self.x / GRID_SIZE).round() * GRID_SIZE,
-            y: (self.y / GRID_SIZE).round() * GRID_SIZE,
+    // pub fn round(&self) -> Self {
+    //     Self {
+    //         x: (self.x / GRID_SIZE as isize).round() * GRID_SIZE as isize,
+    //         y: (self.y / GRID_SIZE as isize).round() * GRID_SIZE as isize,
+    //     }
+    // }
+
+    // pub fn round_to_tuple(&self) -> (isize, isize) {
+    //     (
+    //         ((self.x * 1000.0).round() / 1000.0) as isize,
+    //         ((self.y * 1000.0).round() / 1000.0) as isize,
+    //     )
+    // }
+
+    // FIXME: Fix this
+    //
+    pub fn tikz_coords(&self) -> Vec2 {
+        Vec2 {
+            x: self.x as f32 / (2.0 * GRID_SIZE),
+            y: self.y as f32 / (2.0 * GRID_SIZE),
         }
-    }
-
-    pub fn round_to_tuple(&self) -> (isize, isize) {
-        (
-            ((self.x * 1000.0).round() / 1000.0) as isize,
-            ((self.y * 1000.0).round() / 1000.0) as isize,
-        )
-    }
-
-    pub fn tikz_coords(&self) -> Self {
-        let mut x = self.x / (2.0 * GRID_SIZE);
-        let mut y = self.y / (2.0 * GRID_SIZE);
-        if x == -0.0 {
-            x = 0.0;
-        }
-        if y == -0.0 {
-            y = 0.0;
-        }
-        Self { x, y }
     }
 
     pub fn walk(&self, angle: f32, len: f32) -> Self {
         *self
             + Self {
-                x: angle.cos() * len,
-                y: angle.sin() * len,
+                x: (angle.cos() * len) as isize,
+                y: (angle.sin() * len) as isize,
             }
     }
-}
-
-impl PartialOrd for Position {
-    fn partial_cmp(&self, o: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(o))
-    }
-}
-
-impl Ord for Position {
-    fn cmp(&self, o: &Self) -> std::cmp::Ordering {
-        self.x
-            .partial_cmp(&o.x)
-            .unwrap()
-            .then(self.y.partial_cmp(&o.y).unwrap())
-    }
-}
-
-impl Eq for Position {}
-
-impl From<Vec2> for Position {
-    fn from(v: Vec2) -> Self {
-        Self { x: v.x, y: v.y }
-    }
-}
-
-impl From<Position> for Vec2 {
-    fn from(v: Position) -> Self {
-        Self { x: v.x, y: v.y }
-    }
-}
-
-impl From<Position> for Vec3 {
-    fn from(v: Position) -> Self {
-        Vec3 {
-            x: v.x,
-            y: v.y,
-            z: 0.0,
-        }
-    }
-}
-
-impl From<Vec3> for Position {
-    fn from(value: Vec3) -> Self {
+    pub fn from_vec2(vec: Vec2) -> Self {
         Self {
-            x: value.x,
-            y: value.y,
+            x: vec.x as isize,
+            y: vec.y as isize,
         }
     }
 }
+
 impl std::ops::Neg for Position {
     type Output = Position;
 
@@ -149,10 +99,10 @@ impl std::fmt::Display for Position {
     }
 }
 
-impl std::ops::Mul<f32> for Position {
+impl std::ops::Mul<isize> for Position {
     type Output = Position;
 
-    fn mul(self, rhs: f32) -> Self::Output {
+    fn mul(self, rhs: isize) -> Self::Output {
         Position {
             x: self.x * rhs,
             y: self.y * rhs,
@@ -160,10 +110,10 @@ impl std::ops::Mul<f32> for Position {
     }
 }
 
-impl std::ops::Div<f32> for Position {
+impl std::ops::Div<isize> for Position {
     type Output = Position;
 
-    fn div(self, rhs: f32) -> Self::Output {
+    fn div(self, rhs: isize) -> Self::Output {
         Position {
             x: self.x / rhs,
             y: self.y / rhs,
@@ -181,16 +131,6 @@ impl std::ops::Sub for Position {
         }
     }
 }
-impl std::ops::Sub<f32> for Position {
-    type Output = Position;
-
-    fn sub(self, rhs: f32) -> Self::Output {
-        Position {
-            x: self.x - rhs,
-            y: self.y - rhs,
-        }
-    }
-}
 
 impl std::ops::Add for Position {
     type Output = Position;
@@ -199,17 +139,6 @@ impl std::ops::Add for Position {
         Position {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
-        }
-    }
-}
-
-impl std::ops::Add<f32> for Position {
-    type Output = Position;
-
-    fn add(self, rhs: f32) -> Self::Output {
-        Position {
-            x: self.x + rhs,
-            y: self.y + rhs,
         }
     }
 }

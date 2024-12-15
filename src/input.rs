@@ -1,10 +1,15 @@
 use bevy::app::AppExit;
+use graph::UpdateGraph;
 use structs::{
     BuildInfo, CreateComponent, CreateSingleComponent, DeleteAll, FirstPos, InitiateComponent,
-    Position, Selected,
+    Selected,
 };
 
 use crate::*;
+
+fn close_to(pos: Vec2, other_pos: Vec2) -> bool {
+    pos.distance(other_pos) < GRID_SIZE
+}
 
 pub fn handle_left_click(
     mut commands: Commands,
@@ -20,12 +25,14 @@ pub fn handle_left_click(
     let cursor = cursor_position.pos;
     if let Ok((selected_entity, selected_transform)) = selected.get_single() {
         commands.entity(selected_entity).remove::<Selected>();
-        if cursor.close_to(selected_transform.translation()) {
+        let selected_pos = selected_transform.translation().truncate();
+        if close_to(cursor, selected_pos) {
             return;
         }
     }
     for (ent, transform) in &selectable {
-        if cursor.close_to(transform.translation()) {
+        let selected_pos = transform.translation().truncate();
+        if close_to(cursor, selected_pos) {
             commands.entity(ent).insert(Selected);
             return;
         }
@@ -45,7 +52,6 @@ pub fn on_initial_component(
 
     if cc.is_single() {
         commands.trigger(CreateSingleComponent { node: *ent });
-        commands.trigger(ConvertCircuit);
         return;
     }
 
@@ -62,7 +68,6 @@ pub fn on_initial_component(
     }
 
     commands.trigger(CreateComponent::new(dot_ent, *ent));
-    commands.trigger(ConvertCircuit);
 }
 
 pub fn on_create_single_component(
@@ -75,7 +80,7 @@ pub fn on_create_single_component(
 ) {
     use TikzComponent::*;
     let CreateSingleComponent { node } = trigger.event();
-    let pos = Position::from(transform_query.get(*node).unwrap().translation());
+    let pos = transform_query.get(*node).unwrap().translation();
     let id = match *cc {
         Dot => create_dot(
             &mut commands,
@@ -103,15 +108,20 @@ pub fn on_create_single_component(
         ),
         _ => unreachable!(),
     };
-    commands.entity(id).insert((
-        *cc,
-        Selectable,
-        ComponentStructure::Node(pos.round()),
-        ComponentLabel {
-            label: "".to_string(),
-        },
-        Anchored(pos),
-    ));
+    let structure = ComponentStructure::Node(pos.truncate());
+    let component_entity = commands
+        .entity(id)
+        .insert((
+            *cc,
+            Selectable,
+            structure,
+            ComponentLabel {
+                label: "".to_string(),
+            },
+            Anchored(pos.truncate()),
+        ))
+        .id();
+    commands.trigger(UpdateGraph(structure, component_entity));
 }
 
 pub fn on_create_component(
@@ -123,10 +133,10 @@ pub fn on_create_component(
     transform_query: Query<&GlobalTransform>,
 ) {
     let CreateComponent { initial, fin } = trigger.event();
-    let initial_pos = Position::from(transform_query.get(*initial).unwrap().translation());
-    let final_pos = Position::from(transform_query.get(*fin).unwrap().translation());
+    let initial_pos = transform_query.get(*initial).unwrap().translation();
+    let final_pos = transform_query.get(*fin).unwrap().translation();
     let middle = (initial_pos + final_pos) / 2.0;
-    let len = (final_pos - initial_pos).len();
+    let len = (final_pos - initial_pos).length();
     let angle = (final_pos.y - initial_pos.y).atan2(final_pos.x - initial_pos.x);
     let component = match *cc {
         x if x.is_single() => return,
@@ -141,16 +151,21 @@ pub fn on_create_component(
             1.5 * GRID_SIZE,
         ),
     };
-    commands.entity(component).insert((
-        *cc,
-        Selectable,
-        ComponentStructure::To([initial_pos.round(), final_pos.round()]),
-        ComponentLabel {
-            label: "".to_string(),
-        },
-        Anchored(initial_pos),
-        BuildInfo::new(angle, len),
-    ));
+    let structure = ComponentStructure::To([initial_pos.truncate(), final_pos.truncate()]);
+    let component_entity = commands
+        .entity(component)
+        .insert((
+            *cc,
+            Selectable,
+            structure,
+            ComponentLabel {
+                label: "".to_string(),
+            },
+            Anchored(initial_pos.truncate()),
+            BuildInfo::new(angle, len),
+        ))
+        .id();
+    commands.trigger(UpdateGraph(structure, component_entity));
 }
 
 type Filter = (Without<FirstPos>, With<TikzComponent>);

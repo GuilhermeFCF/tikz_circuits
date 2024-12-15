@@ -342,7 +342,7 @@ dependencies = [
  "bevy_utils",
  "console_error_panic_hook",
  "ctrlc",
- "derive_more 1.0.0",
+ "derive_more",
  "downcast-rs",
  "wasm-bindgen",
  "web-sys",
@@ -368,7 +368,7 @@ dependencies = [
  "bitflags 2.6.0",
  "blake3",
  "crossbeam-channel",
- "derive_more 1.0.0",
+ "derive_more",
  "disqualified",
  "downcast-rs",
  "either",
@@ -406,7 +406,7 @@ dependencies = [
  "bevy_math",
  "bevy_reflect",
  "bytemuck",
- "derive_more 1.0.0",
+ "derive_more",
  "encase",
  "serde",
  "wgpu-types",
@@ -446,7 +446,7 @@ dependencies = [
  "bevy_utils",
  "bevy_window",
  "bitflags 2.6.0",
- "derive_more 1.0.0",
+ "derive_more",
  "nonmax",
  "radsort",
  "serde",
@@ -501,7 +501,7 @@ dependencies = [
  "bevy_utils",
  "bitflags 2.6.0",
  "concurrent-queue",
- "derive_more 1.0.0",
+ "derive_more",
  "disqualified",
  "fixedbitset 0.5.7",
  "nonmax",
@@ -631,7 +631,7 @@ dependencies = [
  "bevy_utils",
  "bitflags 2.6.0",
  "bytemuck",
- "derive_more 1.0.0",
+ "derive_more",
  "futures-lite",
  "image",
  "serde",
@@ -650,7 +650,7 @@ dependencies = [
  "bevy_math",
  "bevy_reflect",
  "bevy_utils",
- "derive_more 1.0.0",
+ "derive_more",
  "smol_str",
 ]
 
@@ -727,7 +727,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ae26f952598e293acac783d947b21af1809673cbeba25d76b969a56f287160b"
 dependencies = [
  "bevy_reflect",
- "derive_more 1.0.0",
+ "derive_more",
  "glam",
  "itertools",
  "rand",
@@ -753,7 +753,7 @@ dependencies = [
  "bevy_utils",
  "bitflags 2.6.0",
  "bytemuck",
- "derive_more 1.0.0",
+ "derive_more",
  "hexasphere",
  "serde",
  "wgpu",
@@ -806,7 +806,7 @@ dependencies = [
  "bevy_ptr",
  "bevy_reflect_derive",
  "bevy_utils",
- "derive_more 1.0.0",
+ "derive_more",
  "disqualified",
  "downcast-rs",
  "erased-serde",
@@ -858,7 +858,7 @@ dependencies = [
  "bevy_window",
  "bytemuck",
  "codespan-reporting",
- "derive_more 1.0.0",
+ "derive_more",
  "downcast-rs",
  "encase",
  "futures-lite",
@@ -903,7 +903,7 @@ dependencies = [
  "bevy_render",
  "bevy_transform",
  "bevy_utils",
- "derive_more 1.0.0",
+ "derive_more",
  "serde",
  "uuid",
 ]
@@ -930,7 +930,7 @@ dependencies = [
  "bevy_window",
  "bitflags 2.6.0",
  "bytemuck",
- "derive_more 1.0.0",
+ "derive_more",
  "fixedbitset 0.5.7",
  "guillotiere",
  "nonmax",
@@ -998,7 +998,7 @@ dependencies = [
  "bevy_utils",
  "bevy_window",
  "cosmic-text",
- "derive_more 1.0.0",
+ "derive_more",
  "serde",
  "smallvec",
  "sys-locale",
@@ -1029,7 +1029,7 @@ dependencies = [
  "bevy_hierarchy",
  "bevy_math",
  "bevy_reflect",
- "derive_more 1.0.0",
+ "derive_more",
 ]
 
 [[package]]
@@ -1059,7 +1059,7 @@ dependencies = [
  "bevy_utils",
  "bevy_window",
  "bytemuck",
- "derive_more 1.0.0",
+ "derive_more",
  "nonmax",
  "smallvec",
  "taffy",
@@ -1368,7 +1368,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_egui",
- "derive_more 0.99.18",
+ "petgraph",
 ]
 
 [[package]]
@@ -1482,12 +1482,6 @@ checksum = "e1aaf9b65849a68662ac6c0810c8893a765c960b907dd7cfab9c4a50bf764fbc"
 dependencies = [
  "const_soft_float",
 ]
-
-[[package]]
-name = "convert_case"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
 
 [[package]]
 name = "core-foundation"
@@ -1632,19 +1626,6 @@ name = "data-encoding"
 version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8566979429cf69b49a5c740c60791108e86440e8be149bbea4fe54d2c32d6e2"
-
-[[package]]
-name = "derive_more"
-version = "0.99.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f33878137e4dafd7fa914ad4e259e18a4e8e532b9617a2d0150262bf53abfce"
-dependencies = [
- "convert_case",
- "proc-macro2",
- "quote",
- "rustc_version",
- "syn",
-]
 
 [[package]]
 name = "derive_more"
@@ -3394,15 +3375,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
-name = "rustc_version"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92"
-dependencies = [
- "semver",
-]
-
-[[package]]
 name = "rustix"
 version = "0.38.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3471,12 +3443,6 @@ name = "self_cell"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d369a96f978623eb3dc28807c4852d6cc617fed53da5d3c400feff1ef34a714a"
-
-[[package]]
-name = "semver"
-version = "1.0.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61697e0a1c7e512e84a621326239844a24d8207b4669b41bc18b32ea5cbf988b"
 
 [[package]]
 name = "send_wrapper"

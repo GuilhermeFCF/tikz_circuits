@@ -68,20 +68,20 @@ pub fn create_with_mesh(
     commands: &mut Commands,
     handles: Res<Handles>,
     mut material: ResMut<Assets<ColorMaterial>>,
-    initial: Position,
-    fin: Position,
+    initial: Vec3,
+    fin: Vec3,
     comp_type: TikzComponent,
     text_height: f32,
 ) -> Entity {
-    let pos = (initial + fin) / 2.0;
-    let len = (fin - initial).len();
+    let translation = (initial + fin) / 2.0;
+    let len = (fin - initial).length();
     let angle = (fin.y - initial.y).atan2(fin.x - initial.x);
     const SIZE: f32 = GRID_SIZE * 1.5;
     let component = commands
         .spawn((
             Visibility::default(),
             Transform {
-                translation: pos.into(),
+                translation,
                 rotation: Quat::from_rotation_z(angle),
                 ..default()
             },
@@ -166,7 +166,7 @@ fn fill_gate_labels(gate: Entity, commands: &mut Commands, comp_type: TikzCompon
     }
 }
 
-fn create_circle_from_radius(radius: f32, p: Position) -> Vec<[f32; 3]> {
+fn create_circle_from_radius(radius: f32, p: Vec2) -> Vec<[f32; 3]> {
     let mut circle = Vec::with_capacity(CIRCLE_RESOLUTION);
     for i in 0..CIRCLE_RESOLUTION {
         let x = radius * (i as f32).cos() + p.x;
@@ -205,11 +205,11 @@ fn create_coil(coils: usize) -> Vec<[f32; 3]> {
     circle
 }
 
-pub fn create_line(commands: &mut Commands, pos: Position, angle: f32, len: f32) -> Entity {
+pub fn create_line(commands: &mut Commands, pos: Vec3, angle: f32, len: f32) -> Entity {
     commands
         .spawn((
             Visibility::default(),
-            Transform::from_translation(pos.into()).with_rotation(Quat::from_rotation_z(angle)),
+            Transform::from_translation(pos).with_rotation(Quat::from_rotation_z(angle)),
             Info::default(),
         ))
         .with_children(|p| {
@@ -229,10 +229,10 @@ pub fn create_line(commands: &mut Commands, pos: Position, angle: f32, len: f32)
         .id()
 }
 
-pub fn create_dot(commands: &mut Commands, pos: Position, color: Color, scale: Vec3) -> Entity {
+pub fn create_dot(commands: &mut Commands, pos: Vec3, color: Color, scale: Vec3) -> Entity {
     commands
         .spawn((
-            Transform::from_translation(pos.into()),
+            Transform::from_translation(pos),
             Visibility::default(),
             TikzComponent::Dot,
             Info::default(),
@@ -430,7 +430,7 @@ pub fn load_handles(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
         // let circ = Mesh2d(meshes.add(Annulus::new(0.45, 0.5)));
         let circle = create_circle_from_radius(
             radius,
-            Position {
+            Vec2 {
                 x: 1.0 - radius,
                 y: 0.0,
             },
