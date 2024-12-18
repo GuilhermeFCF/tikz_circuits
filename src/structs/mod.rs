@@ -17,11 +17,8 @@ pub use position::*;
 pub use select_node::*;
 pub use tikz_component::*;
 
-#[derive(Resource)]
-pub struct CircuitText(pub String);
-
-#[derive(Event)]
-pub struct DeleteAll;
+#[derive(Component)]
+pub struct CircuitText;
 
 #[derive(Component, Clone, Copy, Default)]
 pub struct BuildInfo {
@@ -42,11 +39,11 @@ impl std::fmt::Display for BuildInfo {
 }
 
 // NOTE:This label is what appear in the circuit
-#[derive(Component)]
+#[derive(Component, Clone)]
 #[component(on_insert = on_insert_hook)]
 pub struct Info {
     pub label: String,
-    pub scale: f32,
+    pub scale: String,
 }
 
 // NOTE: This considers that the "label" or "text" entity is the first child.
@@ -62,53 +59,11 @@ fn on_insert_hook(mut world: DeferredWorld, entity: Entity, _component: Componen
     }
 }
 
-impl Info {
-    pub fn is_empty(&self) -> bool {
-        self.label.is_empty() && self.scale == 1.0
-    }
-
-    pub fn from_label(label: impl Into<String>) -> Self {
-        Self {
-            label: label.into(),
-            ..Default::default()
-        }
-    }
-
-    pub fn from_scale(scale: impl Into<f32>) -> Self {
-        Self {
-            scale: scale.into(),
-            ..Default::default()
-        }
-    }
-}
-
 impl Default for Info {
     fn default() -> Self {
         Self {
             label: Default::default(),
-            scale: 1.0,
+            scale: 1.0.to_string(),
         }
     }
-}
-
-#[derive(Event)]
-pub struct InitiateComponent {
-    pub ent: Entity,
-}
-
-#[derive(Event)]
-pub struct CreateComponent {
-    pub initial: Entity,
-    pub fin: Entity,
-}
-
-impl CreateComponent {
-    pub fn new(initial: Entity, fin: Entity) -> Self {
-        Self { initial, fin }
-    }
-}
-
-#[derive(Event)]
-pub struct CreateSingleComponent {
-    pub node: Entity,
 }

@@ -1,7 +1,11 @@
 use bevy::{input::common_conditions::input_just_pressed, prelude::*, utils::HashMap};
 use petgraph::{graph::NodeIndex, Graph, Undirected};
 
-use crate::{ComponentStructure, ConvertCircuit, Position, GRID_COUNT, GRID_SIZE, OFFSET};
+use crate::{
+    create::ConvertCircuit,
+    structs::{ComponentStructure, Position},
+    GRID_COUNT, GRID_SIZE, OFFSET,
+};
 
 pub struct GraphPlugin;
 
@@ -55,13 +59,13 @@ fn update_graph(
     };
     let (initial_index, final_index) = match event {
         ComponentStructure::Node(pos) => {
-            let pos = Position::from_vec2(pos);
+            let pos = pos.into();
             let pos = get_node_index(&pos);
             (pos, pos)
         }
         ComponentStructure::To([initial_pos, final_pos]) => {
-            let initial_pos = Position::from_vec2(initial_pos);
-            let final_pos = Position::from_vec2(final_pos);
+            let initial_pos = initial_pos.into();
+            let final_pos = final_pos.into();
             let initial_pos = get_node_index(&initial_pos);
             let final_pos = get_node_index(&final_pos);
             (initial_pos, final_pos)

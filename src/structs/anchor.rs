@@ -3,13 +3,13 @@ use bevy::{
     prelude::*,
 };
 
-use crate::ConvertCircuit;
+use crate::create::ConvertCircuit;
 
 use super::{BuildInfo, ComponentStructure};
 
 #[derive(Component)]
 #[component(on_insert = on_insert_hook)]
-#[require(BuildInfo, ComponentStructure(|| ComponentStructure::Node(Vec2::default())))]
+#[require(ComponentStructure(|| ComponentStructure::Node(Vec2::default())))]
 pub struct Anchored(pub Vec2);
 
 fn on_insert_hook(mut world: DeferredWorld, entity: Entity, _component: ComponentId) {

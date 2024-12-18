@@ -3,23 +3,20 @@ use bevy::{
     prelude::*,
     utils::HashMap,
 };
-use bevy_egui::{EguiContexts, EguiPlugin};
 
 mod actions;
 mod components;
 mod create;
 mod graph;
 mod input;
+mod input_widget;
 mod structs;
 mod ui;
+use input_widget::TextInputPlugin;
 
-pub use actions::*;
-pub use components::*;
-pub use create::*;
-pub use input::*;
-pub use structs::*;
-pub use ui::*;
+use structs::{Markable, TikzComponent};
 
+const TEXT_SCALE: f32 = 0.6;
 const GRID_SIZE: f32 = 16.0;
 const GRID_COUNT: u32 = 40;
 const OFFSET: f32 = GRID_COUNT as f32 * GRID_SIZE / 2.0;
@@ -27,59 +24,44 @@ const OFFSET: f32 = GRID_COUNT as f32 * GRID_SIZE / 2.0;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        // .add_plugins(MeshPickingPlugin)
-        .add_plugins(EguiPlugin)
-        .insert_resource(TikzComponent::Resistor)
-        .insert_resource(CursorPosition::default())
-        .insert_resource(CircuitText(String::default()))
-        .insert_resource(CurrentFile(
+        .add_plugins(TextInputPlugin)
+        .insert_resource(structs::TikzComponent::Resistor)
+        .insert_resource(structs::CursorPosition::default())
+        .insert_resource(Focused(Entity::PLACEHOLDER))
+        .insert_resource(create::CurrentFile(
             "/home/guilherme/projects/circuits/test.tex".to_string(),
         ))
         .add_plugins(graph::GraphPlugin)
+        .add_systems(Startup, (setup, ui::ui, components::load_handles))
         .add_systems(
             Update,
             (
-                ui_system,
-                get_cursor_position,
-                mark_node,
-                move_entity.run_if(input_pressed(MouseButton::Right)),
-                handle_left_click.run_if(input_just_pressed(MouseButton::Left)),
-                despawn_selected.run_if(input_just_pressed(KeyCode::Delete)),
-                middle.run_if(input_just_pressed(MouseButton::Middle)),
-                change_current_component,
-                cancel_action.run_if(input_just_pressed(KeyCode::Escape)),
+                structs::get_cursor_position,
+                structs::mark_node,
+                actions::move_entity.run_if(input_pressed(MouseButton::Right)),
+                structs::despawn_selected.run_if(input_just_pressed(KeyCode::Delete)),
+                input::handle_left_click.run_if(input_just_pressed(MouseButton::Left)),
+                input::remove_all.run_if(input_just_pressed(MouseButton::Middle)),
+                input::change_current_component,
+                input::camera_movement,
+                input::cancel_action.run_if(input_just_pressed(KeyCode::Escape)),
+                input::zoom_scale,
+                ui::update_radio.run_if(resource_changed::<TikzComponent>),
+                ui::focus_right_input.run_if(resource_changed::<Focused>),
             ),
         )
-        .add_systems(Startup, (setup, load_handles))
-        .add_observer(create)
-        .add_observer(on_initial_component)
-        .add_observer(on_create_single_component)
-        .add_observer(on_create_component)
-        .add_observer(delete_component)
-        .add_observer(update_label)
-        .add_observer(remove_all)
-        .add_observer(update_file)
-        .add_observer(update_component_label)
+        .add_observer(create::create)
+        .add_observer(create::update_file)
+        .add_observer(actions::draw_components::draw_initial_component)
+        .add_observer(actions::delete_component)
+        .add_observer(actions::update_info)
+        .add_observer(actions::update_component_label)
+        .add_observer(ui::submit_event)
         .run();
 }
 
-fn cancel_action(
-    mut commands: Commands,
-    q_first: Query<Entity, With<FirstPos>>,
-    selected: Query<Entity, With<Selected>>,
-) {
-    if let Ok(ent) = q_first.get_single() {
-        commands.entity(ent).remove::<FirstPos>();
-    }
-
-    if let Ok(ent) = selected.get_single() {
-        commands.entity(ent).remove::<Selected>();
-    }
-}
-
-fn middle(mut commands: Commands) {
-    commands.trigger(DeleteAll);
-}
+#[derive(Resource, Debug)]
+struct Focused(Entity);
 
 fn setup(mut commands: Commands) {
     commands.spawn(Camera2d);
@@ -91,7 +73,7 @@ fn setup(mut commands: Commands) {
             let y = y_i as f32 * GRID_SIZE - OFFSET;
             commands.spawn((
                 Sprite::default(),
-                Transform::from_xyz(x, y, -10.0).with_scale(Vec3::splat(1.0)),
+                Transform::from_xyz(x, y, -100.0).with_scale(Vec3::splat(1.0)),
                 Markable,
             ));
         }

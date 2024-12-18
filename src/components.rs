@@ -1,7 +1,7 @@
-use crate::*;
-use bevy::{math::vec2, render::render_asset::RenderAssetUsages, utils::hashbrown::HashMap};
+use crate::structs::TikzComponent;
+use bevy::prelude::*;
+use bevy::{render::render_asset::RenderAssetUsages, utils::hashbrown::HashMap};
 
-const TEXT_SCALE: f32 = 0.6;
 const CIRCLE_RESOLUTION: usize = 500;
 const RESISTOR: [[f32; 3]; 18] = [
     [-0.5, 0.0, 0.0],
@@ -64,109 +64,7 @@ const ARROW: [[f32; 3]; 6] = [
     [0.2, 0.0, 0.0],
 ];
 
-pub fn create_with_mesh(
-    commands: &mut Commands,
-    handles: Res<Handles>,
-    mut material: ResMut<Assets<ColorMaterial>>,
-    initial: Vec3,
-    fin: Vec3,
-    comp_type: TikzComponent,
-    text_height: f32,
-) -> Entity {
-    let translation = (initial + fin) / 2.0;
-    let len = (fin - initial).length();
-    let angle = (fin.y - initial.y).atan2(fin.x - initial.x);
-    const SIZE: f32 = GRID_SIZE * 1.5;
-    let component = commands
-        .spawn((
-            Visibility::default(),
-            Transform {
-                translation,
-                rotation: Quat::from_rotation_z(angle),
-                ..default()
-            },
-            Info::default(),
-        ))
-        .with_children(|p| {
-            p.spawn((
-                Text2d("".to_string()),
-                TextLayout::new_with_justify(JustifyText::Center),
-                Transform::from_xyz(0.0, text_height, 0.0).with_scale(Vec3::splat(TEXT_SCALE)),
-            ));
-            let InfoMeshes { meshes } = handles.0.get(&comp_type).unwrap();
-            for mesh in meshes.iter() {
-                p.spawn((
-                    mesh.clone(),
-                    MeshMaterial2d(material.add(Color::WHITE)),
-                    Transform::from_scale(Vec3::new(SIZE, SIZE, 1.0)),
-                ));
-            }
-
-            if len > SIZE && !comp_type.is_gate() {
-                let half_line = (len - SIZE) / 2.0;
-                let offset = (SIZE + half_line) / 2.0;
-                let width = 0.5;
-                p.spawn((
-                    Sprite::default(),
-                    Transform::from_xyz(-offset, 0.0, 0.0)
-                        .with_scale(Vec3::new(half_line, width, 1.0)),
-                ));
-
-                p.spawn((
-                    Sprite::default(),
-                    Transform::from_xyz(offset, 0.0, 0.0)
-                        .with_scale(Vec3::new(half_line, width, 1.0)),
-                ));
-            }
-        })
-        .id();
-    if comp_type.is_gate() {
-        fill_gate_labels(component, commands, comp_type);
-    }
-
-    component
-}
-fn fill_gate_labels(gate: Entity, commands: &mut Commands, comp_type: TikzComponent) {
-    use TikzComponent::*;
-    match comp_type {
-        AndGate | OrGate | XorGate => {
-            let in1 = commands
-                .spawn((
-                    Transform::from_xyz(-2.0 * GRID_SIZE, GRID_SIZE, 1.0),
-                    ComponentLabel {
-                        label: ".in 1".to_string(),
-                    },
-                ))
-                .id();
-
-            let in2 = commands
-                .spawn((
-                    Transform::from_xyz(-2.0 * GRID_SIZE, -GRID_SIZE, 1.0),
-                    ComponentLabel {
-                        label: ".in 2".to_string(),
-                    },
-                ))
-                .id();
-
-            let out = commands
-                .spawn((
-                    Transform::from_xyz(2.0 * GRID_SIZE, 0.0, 1.0),
-                    ComponentLabel {
-                        label: ".out".to_string(),
-                    },
-                ))
-                .id();
-            info!("{in1} {in2} {out}");
-
-            commands.entity(gate).add_children(&[in1, in2, out]);
-        }
-
-        NotGate => {}
-        _ => unreachable!("Only gate type"),
-    }
-}
-
-fn create_circle_from_radius(radius: f32, p: Vec2) -> Vec<[f32; 3]> {
+fn draw_circle_from_radius(radius: f32, p: Vec2) -> Vec<[f32; 3]> {
     let mut circle = Vec::with_capacity(CIRCLE_RESOLUTION);
     for i in 0..CIRCLE_RESOLUTION {
         let x = radius * (i as f32).cos() + p.x;
@@ -177,7 +75,7 @@ fn create_circle_from_radius(radius: f32, p: Vec2) -> Vec<[f32; 3]> {
     circle
 }
 
-fn create_arc(p0: Vec3, p1: Vec3, p2: Vec3) -> Vec<[f32; 3]> {
+fn draw_arc(p0: Vec3, p1: Vec3, p2: Vec3) -> Vec<[f32; 3]> {
     let mut arc = Vec::with_capacity(CIRCLE_RESOLUTION);
     for i in 0..CIRCLE_RESOLUTION {
         let t = i as f32 / CIRCLE_RESOLUTION as f32;
@@ -187,7 +85,8 @@ fn create_arc(p0: Vec3, p1: Vec3, p2: Vec3) -> Vec<[f32; 3]> {
     arc
 }
 
-fn create_coil(coils: usize) -> Vec<[f32; 3]> {
+// FIXME: This only works with 4 coils, so why ask for an arbitrary amount of coils
+fn draw_coil(coils: usize) -> Vec<[f32; 3]> {
     let size = 500;
     let mut circle = Vec::with_capacity(coils * size);
     let radius = 1f32 / coils as f32;
@@ -195,6 +94,7 @@ fn create_coil(coils: usize) -> Vec<[f32; 3]> {
         for i in 0..size {
             let x = current + radius * (i as f32).cos() * 2f32 / coils as f32;
             let y = radius * (i as f32).sin() * 3f32 / coils as f32 * 1.35;
+
             if y < f32::EPSILON {
                 continue;
             }
@@ -205,54 +105,11 @@ fn create_coil(coils: usize) -> Vec<[f32; 3]> {
     circle
 }
 
-pub fn create_line(commands: &mut Commands, pos: Vec3, angle: f32, len: f32) -> Entity {
-    commands
-        .spawn((
-            Visibility::default(),
-            Transform::from_translation(pos).with_rotation(Quat::from_rotation_z(angle)),
-            Info::default(),
-        ))
-        .with_children(|p| {
-            p.spawn((
-                Sprite {
-                    color: Color::WHITE,
-                    ..default()
-                },
-                Transform::from_scale(Vec3::new(len, 0.5, 1.0)),
-            ));
-            p.spawn((
-                Text2d::default(),
-                TextLayout::new_with_justify(JustifyText::Center),
-                Transform::from_xyz(0.0, 0.75 * GRID_SIZE, 0.0).with_scale(Vec3::splat(TEXT_SCALE)),
-            ));
-        })
-        .id()
-}
-
-pub fn create_dot(commands: &mut Commands, pos: Vec3, color: Color, scale: Vec3) -> Entity {
-    commands
-        .spawn((
-            Transform::from_translation(pos),
-            Visibility::default(),
-            TikzComponent::Dot,
-            Info::default(),
-            BuildInfo::default(),
-        ))
-        .with_children(|p| {
-            p.spawn((Sprite { color, ..default() }, Transform::from_scale(scale)));
-            p.spawn((
-                Text2d::default(),
-                TextLayout::new_with_justify(JustifyText::Center),
-                Transform::from_xyz(0.0, 0.75 * GRID_SIZE, 0.0).with_scale(Vec3::splat(TEXT_SCALE)),
-            ));
-        })
-        .id()
-}
 #[derive(Resource)]
-pub struct Handles(HashMap<TikzComponent, InfoMeshes>);
+pub struct Handles(pub HashMap<TikzComponent, InfoMeshes>);
 
-struct InfoMeshes {
-    meshes: Vec<Mesh2d>,
+pub struct InfoMeshes {
+    pub meshes: Vec<Mesh2d>,
 }
 
 pub fn load_handles(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
@@ -278,7 +135,7 @@ pub fn load_handles(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
     {
         // Inductor
         let mut mesh = Mesh::new(Topology::PointList, RenderAssetUsages::RENDER_WORLD);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, create_coil(4));
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, draw_coil(4));
         let mesh = vec![meshes.add(mesh).into()];
         let info = InfoMeshes { meshes: mesh };
         map.insert(TikzComponent::Inductor, info);
@@ -341,10 +198,10 @@ pub fn load_handles(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
         ];
 
         let a2: Vec<_> = CubicBezier::new([[
-            vec2(0.5, 1.0),
-            vec2(1.65 - l[0][0], 0.75),
-            vec2(1.65 - l[0][0], -0.75),
-            vec2(0.5, -1.0),
+            Vec2::new(0.5, 1.0),
+            Vec2::new(1.65 - l[0][0], 0.75),
+            Vec2::new(1.65 - l[0][0], -0.75),
+            Vec2::new(0.5, -1.0),
         ]])
         .to_curve()
         .unwrap()
@@ -380,9 +237,9 @@ pub fn load_handles(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
         // OR PORT
         let l = [[-0.6666, 1.0, 0.0], [-0.6666, -1.0, 0.0]];
         let right = Vec3::new(1., 0.0, 0.0);
-        let mut arc = create_arc(l[0].into(), Vec3::new(0.6666, 1., 0.0), right);
-        let mut lower_arc = create_arc(l[1].into(), Vec3::new(0.6666, -1., 0.0), right);
-        let mut back_arc = create_arc(l[0].into(), Vec3::new(0.0, 0.0, 0.0), l[1].into());
+        let mut arc = draw_arc(l[0].into(), Vec3::new(0.6666, 1., 0.0), right);
+        let mut lower_arc = draw_arc(l[1].into(), Vec3::new(0.6666, -1., 0.0), right);
+        let mut back_arc = draw_arc(l[0].into(), Vec3::new(0.0, 0.0, 0.0), l[1].into());
         arc.append(&mut back_arc);
         arc.append(&mut lower_arc);
         let arcs = Mesh::new(Topology::PointList, RenderAssetUsages::RENDER_WORLD)
@@ -428,7 +285,7 @@ pub fn load_handles(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
                 ],
             );
         // let circ = Mesh2d(meshes.add(Annulus::new(0.45, 0.5)));
-        let circle = create_circle_from_radius(
+        let circle = draw_circle_from_radius(
             radius,
             Vec2 {
                 x: 1.0 - radius,
@@ -446,12 +303,12 @@ pub fn load_handles(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
         // XOR PORT
         let l = [[-0.6666, 1.0, 0.0], [-0.6666, -1.0, 0.0]];
         let right = Vec3::new(1., 0.0, 0.0);
-        let mut upper_arc = create_arc(l[0].into(), Vec3::new(0.6666, 1., 0.0), right);
-        let mut lower_arc = create_arc(l[1].into(), Vec3::new(0.6666, -1., 0.0), right);
-        let mut back_arc = create_arc(l[0].into(), Vec3::new(0.0, 0.0, 0.0), l[1].into());
+        let mut upper_arc = draw_arc(l[0].into(), Vec3::new(0.6666, 1., 0.0), right);
+        let mut lower_arc = draw_arc(l[1].into(), Vec3::new(0.6666, -1., 0.0), right);
+        let mut back_arc = draw_arc(l[0].into(), Vec3::new(0.0, 0.0, 0.0), l[1].into());
         upper_arc.append(&mut back_arc);
         upper_arc.append(&mut lower_arc);
-        let mut back_arc = create_arc(
+        let mut back_arc = draw_arc(
             Vec3::from_array(l[0]) + Vec3::new(-0.2, 0.0, 0.0),
             Vec3::new(-0.2, 0.0, 0.0),
             Vec3::from_array(l[1]) + Vec3::new(-0.2, 0.0, 0.0),
@@ -474,6 +331,47 @@ pub fn load_handles(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
         let mesh = vec![meshes.add(arcs).into(), meshes.add(lines).into()];
         let info = InfoMeshes { meshes: mesh };
         map.insert(TikzComponent::XorGate, info);
+    }
+
+    {
+        // AMPOP
+        let lines = Mesh::new(Topology::LineList, RenderAssetUsages::RENDER_WORLD)
+            .with_inserted_attribute(
+                Mesh::ATTRIBUTE_POSITION,
+                vec![
+                    // Triangle
+                    [-0.6666, 1.3333, 0.0],
+                    [1.3333, 0.0, 0.0],
+                    //
+                    [-0.6666, -1.3333, 0.0],
+                    [1.3333, 0.0, 0.0],
+                    //
+                    [-0.6666, 1.3333, 0.0],
+                    [-0.6666, -1.3333, 0.0],
+                    // out line
+                    [1.3333, 0.0, 0.0],
+                    [2., 0.0, 0.0],
+                    // - in
+                    [-0.6666, 0.6666, 0.0],
+                    [-1.3333, 0.6666, 0.0],
+                    // + in
+                    [-0.6666, -0.6666, 0.0],
+                    [-1.3333, -0.6666, 0.0],
+                    // - line
+                    [-0.5, 0.5, 0.0],
+                    [-0.3, 0.5, 0.0],
+                    // + line
+                    [-0.5, -0.5, 0.0],
+                    [-0.3, -0.5, 0.0],
+                    //
+                    [-0.4, -0.4, 0.0],
+                    [-0.4, -0.6, 0.0],
+                ],
+            );
+        // let circ = Mesh2d(meshes.add(Annulus::new(0.45, 0.5)));
+        let mesh = vec![meshes.add(lines).into()];
+        let info = InfoMeshes { meshes: mesh };
+        map.insert(TikzComponent::AmpOp, info);
     }
     commands.insert_resource(Handles(map));
 }

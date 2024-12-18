@@ -1,4 +1,4 @@
-use super::UpdateComponentLabel;
+use crate::actions::UpdateComponentLabel;
 use bevy::{
     ecs::{component::ComponentId, world::DeferredWorld},
     prelude::*,
@@ -16,7 +16,6 @@ fn hook(mut world: DeferredWorld, _: Entity, _component_id: ComponentId) {
     world.trigger::<UpdateComponentLabel>(UpdateComponentLabel);
 }
 
-/// Entity should contain a tikz node component and a global position.
 #[derive(Component, Debug, Copy, Clone)]
 pub enum ComponentStructure {
     Node(Vec2),
@@ -36,16 +35,21 @@ pub enum TikzComponent {
     Ground,
     VSource,
     ISource,
-    Label,
     Line,
+    AmpOp,
+    Transistor,
+    Diode,
+    Transformer,
 }
 
 impl TikzComponent {
+    #[inline]
     pub fn is_single(&self) -> bool {
         use TikzComponent::*;
-        matches!(self, Ground | Dot) || self.is_gate()
+        matches!(self, Ground | Dot | AmpOp | Transistor | Transformer) || self.is_gate()
     }
 
+    #[inline]
     pub fn is_gate(&self) -> bool {
         use TikzComponent::*;
         matches!(self, AndGate | OrGate | XorGate | NotGate)
@@ -66,7 +70,21 @@ impl TikzComponent {
             OrGate => "or port",
             XorGate => "xor port",
             NotGate => "not port",
-            Label => panic!("Reaching tikz_type with type label"),
+            AmpOp => "op amp",
+            Transistor => "npn",
+            Diode => "D",
+            Transformer => "transformer",
+            // Label => panic!("Reaching tikz_type with type label"),
+        }
+    }
+
+    pub fn get_label_height(&self) -> f32 {
+        use TikzComponent::*;
+        match self {
+            AmpOp => 0.,
+            x if x.is_gate() => 2.,
+            Line => 0.75,
+            _ => 1.5,
         }
     }
 }
@@ -81,13 +99,16 @@ impl std::fmt::Display for TikzComponent {
             Capacitor => "Capacitor",
             Inductor => "Indutor",
             Ground => "Terra",
-            VSource => "Fonte Tensão",
-            ISource => "Fonte Corrente",
-            AndGate => "Porta And",
-            OrGate => "Porta Or",
-            XorGate => "Porta Xor",
-            NotGate => "Porta Not",
-            Label => "",
+            VSource => "V",
+            ISource => "C",
+            AndGate => "And",
+            OrGate => "Or",
+            XorGate => "Xor",
+            NotGate => "Not",
+            AmpOp => "AmpOp",
+            Transistor => "Transistor",
+            Diode => "Diodo",
+            Transformer => "Trafo",
         };
         write!(f, "{c}")
     }

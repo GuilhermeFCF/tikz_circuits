@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 use std::fs::File;
 use std::io::Write;
+use structs::CircuitText;
 
+use crate::structs::{ComponentLabel, ComponentStructure, Info, Position, TikzComponent};
 use crate::*;
 
 #[derive(Event)]
@@ -11,7 +13,7 @@ pub fn create(
     _: Trigger<ConvertCircuit>,
     mut commands: Commands,
     components: Query<(Entity, &ComponentStructure, &TikzComponent, &Info)>,
-    mut text: ResMut<CircuitText>,
+    mut text: Single<&mut Text, With<CircuitText>>,
     parents: Query<&ComponentLabel, With<Children>>,
     children: Query<(&GlobalTransform, &Parent, &ComponentLabel)>,
 ) {
@@ -19,7 +21,7 @@ pub fn create(
     for (child_transform, parent, child_label) in &children {
         let parent_label = parents.get(**parent).unwrap();
         pos_label.insert(
-            Position::from_vec2(child_transform.translation().truncate()),
+            child_transform.translation().truncate().into(),
             format!("({}{})", parent_label.label, child_label.label),
         );
     }
@@ -34,11 +36,11 @@ pub fn create(
     for (_, component, _, _) in components.iter() {
         match component {
             ComponentStructure::Node(position) => {
-                insert_on_map(Position::from_vec2(*position));
+                insert_on_map((*position).into());
             }
             ComponentStructure::To([initial, fin]) => {
-                insert_on_map(Position::from_vec2(*initial));
-                insert_on_map(Position::from_vec2(*fin));
+                insert_on_map((*initial).into());
+                insert_on_map((*fin).into());
             }
         }
     }
@@ -59,8 +61,8 @@ pub fn create(
         ));
     }
 
-    let map_to_label = |pos: &Position| -> String {
-        if let Some(label) = pos_label.get(pos) {
+    let map_to_label = |pos: Position| -> String {
+        if let Some(label) = pos_label.get(&pos) {
             label.to_string()
         } else {
             let pos = pos.tikz_coords();
@@ -69,26 +71,27 @@ pub fn create(
     };
 
     for (ent, component, c_type, info) in &components {
-        let parent_label = parents.get(ent).unwrap();
+        // FIXME: This is kinda wieeerd
+        let Ok(parent_label) = parents.get(ent) else {
+            return;
+        };
+        let c_label = get_component_label(parent_label);
+        let c_info = get_component_info(info);
+        let c_type = c_type.tikz_type();
         match component {
             ComponentStructure::Node(position) => {
-                let position = &Position::from_vec2(*position);
+                let position = (*position).into();
                 buffer.push_str(&format!(
                     "\t{label} node[{c_type}{c_info}]{c_label}{{}}\n",
                     label = map_to_label(position),
-                    c_type = c_type.tikz_type(),
-                    c_info = get_component_info(info),
-                    c_label = get_component_label(parent_label)
                 ));
             }
             ComponentStructure::To([initial, fin]) => {
-                let initial = &Position::from_vec2(*initial);
-                let fin = &Position::from_vec2(*fin);
+                let initial = (*initial).into();
+                let fin = (*fin).into();
                 buffer.push_str(&format!(
                     "\t{label} to[{c_type}{c_info}] {final_label}\n",
                     label = map_to_label(initial),
-                    c_type = c_type.tikz_type(),
-                    c_info = get_component_info(info),
                     final_label = map_to_label(fin),
                 ));
             }
@@ -105,7 +108,7 @@ fn get_component_info(component_info: &Info) -> String {
         buf.push_str(&format!(", label={}", component_info.label));
     }
 
-    if component_info.scale != 1.0 {
+    if component_info.scale != 1.0.to_string() {
         buf.push_str(&format!(", scale={}", component_info.scale));
     }
     buf
@@ -125,7 +128,11 @@ pub struct CurrentFile(pub String);
 #[derive(Event)]
 pub struct UpdateFile;
 
-pub fn update_file(_: Trigger<UpdateFile>, file: Res<CurrentFile>, text: Res<CircuitText>) {
+pub fn update_file(
+    _: Trigger<UpdateFile>,
+    file: Res<CurrentFile>,
+    text: Single<&Text, With<CircuitText>>,
+) {
     let file = file.0.clone();
     let mut file = File::create(file).unwrap();
     file.write_all(text.0.as_bytes()).unwrap();

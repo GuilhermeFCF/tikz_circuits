@@ -1,4 +1,5 @@
-use crate::*;
+use crate::actions::DeleteComponent;
+use bevy::prelude::*;
 
 #[derive(Component)]
 pub struct Selectable;

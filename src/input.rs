@@ -1,9 +1,6 @@
-use bevy::app::AppExit;
-use graph::UpdateGraph;
-use structs::{
-    BuildInfo, CreateComponent, CreateSingleComponent, DeleteAll, FirstPos, InitiateComponent,
-    Selected,
-};
+use crate::actions::DeleteComponent;
+use bevy::{app::AppExit, input::mouse::MouseWheel};
+use structs::{CursorPosition, FirstPos, Marker, Selectable, Selected, TikzComponent};
 
 use crate::*;
 
@@ -17,7 +14,9 @@ pub fn handle_left_click(
     marked_node: Single<Entity, With<Marker>>,
     selectable: Query<(Entity, &GlobalTransform), With<Selectable>>,
     selected: Query<(Entity, &GlobalTransform), With<Selected>>,
+    mut focused: ResMut<crate::Focused>,
 ) {
+    *focused = crate::Focused(Entity::PLACEHOLDER);
     if !cursor_position.within_grid {
         return;
     }
@@ -37,139 +36,27 @@ pub fn handle_left_click(
             return;
         }
     }
-    commands.trigger(InitiateComponent { ent: node_entity })
+    commands.trigger(actions::draw_components::InitiateComponent { ent: node_entity })
 }
 
-pub fn on_initial_component(
-    trigger: Trigger<InitiateComponent>,
+pub fn cancel_action(
     mut commands: Commands,
-    dots: Query<Entity, With<FirstPos>>,
-    cc: Res<TikzComponent>,
-    transform_query: Query<&GlobalTransform>,
+    q_first: Query<Entity, With<crate::structs::FirstPos>>,
+    selected: Query<Entity, With<Selected>>,
 ) {
-    let InitiateComponent { ent } = trigger.event();
-    let transform = transform_query.get(*ent).unwrap();
-
-    if cc.is_single() {
-        commands.trigger(CreateSingleComponent { node: *ent });
-        return;
+    if let Ok(ent) = q_first.get_single() {
+        commands.entity(ent).remove::<crate::structs::FirstPos>();
     }
 
-    let Ok(dot_ent) = dots.get_single() else {
-        commands.entity(*ent).insert(FirstPos);
-        return;
-    };
-
-    let dot_pos = transform_query.get(dot_ent).unwrap();
-    commands.entity(dot_ent).remove::<FirstPos>();
-
-    if transform == dot_pos {
-        return;
+    if let Ok(ent) = selected.get_single() {
+        commands.entity(ent).remove::<Selected>();
     }
-
-    commands.trigger(CreateComponent::new(dot_ent, *ent));
 }
 
-pub fn on_create_single_component(
-    trigger: Trigger<CreateSingleComponent>,
+pub fn remove_all(
     mut commands: Commands,
-    cc: Res<TikzComponent>,
-    handles: Res<Handles>,
-    material: ResMut<Assets<ColorMaterial>>,
-    transform_query: Query<&GlobalTransform>,
+    q_points: Query<Entity, (Without<FirstPos>, With<TikzComponent>)>,
 ) {
-    use TikzComponent::*;
-    let CreateSingleComponent { node } = trigger.event();
-    let pos = transform_query.get(*node).unwrap().translation();
-    let id = match *cc {
-        Dot => create_dot(
-            &mut commands,
-            pos,
-            Color::Srgba(Srgba::gray(0.5)),
-            Vec3::new(6.0, 6.0, 1.0),
-        ),
-        Ground => create_with_mesh(
-            &mut commands,
-            handles,
-            material,
-            pos,
-            pos,
-            *cc,
-            1.5 * GRID_SIZE,
-        ),
-        x if x.is_gate() => create_with_mesh(
-            &mut commands,
-            handles,
-            material,
-            pos,
-            pos,
-            *cc,
-            2f32 * GRID_SIZE,
-        ),
-        _ => unreachable!(),
-    };
-    let structure = ComponentStructure::Node(pos.truncate());
-    let component_entity = commands
-        .entity(id)
-        .insert((
-            *cc,
-            Selectable,
-            structure,
-            ComponentLabel {
-                label: "".to_string(),
-            },
-            Anchored(pos.truncate()),
-        ))
-        .id();
-    commands.trigger(UpdateGraph(structure, component_entity));
-}
-
-pub fn on_create_component(
-    trigger: Trigger<CreateComponent>,
-    mut commands: Commands,
-    cc: Res<TikzComponent>,
-    handles: Res<Handles>,
-    material: ResMut<Assets<ColorMaterial>>,
-    transform_query: Query<&GlobalTransform>,
-) {
-    let CreateComponent { initial, fin } = trigger.event();
-    let initial_pos = transform_query.get(*initial).unwrap().translation();
-    let final_pos = transform_query.get(*fin).unwrap().translation();
-    let middle = (initial_pos + final_pos) / 2.0;
-    let len = (final_pos - initial_pos).length();
-    let angle = (final_pos.y - initial_pos.y).atan2(final_pos.x - initial_pos.x);
-    let component = match *cc {
-        x if x.is_single() => return,
-        TikzComponent::Line => create_line(&mut commands, middle, angle, len),
-        _ => create_with_mesh(
-            &mut commands,
-            handles,
-            material,
-            initial_pos,
-            final_pos,
-            *cc,
-            1.5 * GRID_SIZE,
-        ),
-    };
-    let structure = ComponentStructure::To([initial_pos.truncate(), final_pos.truncate()]);
-    let component_entity = commands
-        .entity(component)
-        .insert((
-            *cc,
-            Selectable,
-            structure,
-            ComponentLabel {
-                label: "".to_string(),
-            },
-            Anchored(initial_pos.truncate()),
-            BuildInfo::new(angle, len),
-        ))
-        .id();
-    commands.trigger(UpdateGraph(structure, component_entity));
-}
-
-type Filter = (Without<FirstPos>, With<TikzComponent>);
-pub fn remove_all(_: Trigger<DeleteAll>, mut commands: Commands, q_points: Query<Entity, Filter>) {
     if q_points.is_empty() {
         return;
     }
@@ -178,17 +65,17 @@ pub fn remove_all(_: Trigger<DeleteAll>, mut commands: Commands, q_points: Query
 }
 
 pub fn change_current_component(
-    mut egui_context: EguiContexts,
     keys: Res<ButtonInput<KeyCode>>,
     mut cc: ResMut<TikzComponent>,
     mut exit: EventWriter<AppExit>,
+    focused: Res<Focused>,
 ) {
-    if egui_context.ctx_mut().wants_keyboard_input() {
-        return;
-    }
     let Some(key_map) = keys.get_just_pressed().next() else {
         return;
     };
+    if focused.0 != Entity::PLACEHOLDER {
+        return;
+    }
 
     if *key_map == KeyCode::KeyQ {
         exit.send(AppExit::Success);
@@ -196,7 +83,7 @@ pub fn change_current_component(
     }
 
     *cc = match key_map {
-        KeyCode::KeyW => TikzComponent::Line,
+        KeyCode::KeyU => TikzComponent::Line,
         KeyCode::KeyR => TikzComponent::Resistor,
         KeyCode::KeyC => TikzComponent::Capacitor,
         KeyCode::KeyL => TikzComponent::Inductor,
@@ -205,5 +92,57 @@ pub fn change_current_component(
         KeyCode::KeyP => TikzComponent::Dot,
         KeyCode::KeyG => TikzComponent::Ground,
         _ => return,
-    };
+    }
+}
+
+pub fn camera_movement(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut camera: Single<&mut Transform, With<Camera2d>>,
+    time: Res<Time>,
+    focused: Res<Focused>,
+) {
+    if focused.0 != Entity::PLACEHOLDER {
+        return;
+    }
+    use KeyCode::*;
+
+    const CAMERA_BOUNDS: [f32; 4] = [-90., 250., -200., 200.];
+    let mut direction = Vec3::ZERO;
+
+    if keys.pressed(KeyW) {
+        direction.y += 1.;
+    }
+
+    if keys.pressed(KeyS) {
+        direction.y -= 1.;
+    }
+
+    if keys.pressed(KeyA) {
+        direction.x -= 1.;
+    }
+
+    if keys.pressed(KeyD) {
+        direction.x += 1.;
+    }
+
+    let mut final_transform = camera.translation + direction.normalize_or_zero() * 100.;
+    final_transform.x = final_transform.x.clamp(CAMERA_BOUNDS[0], CAMERA_BOUNDS[1]);
+    final_transform.y = final_transform.y.clamp(CAMERA_BOUNDS[2], CAMERA_BOUNDS[3]);
+    camera
+        .translation
+        .smooth_nudge(&final_transform, 1.5, time.delta_secs())
+}
+
+pub fn zoom_scale(
+    mut mouse_wheel_events: EventReader<MouseWheel>,
+    mut camera: Single<&mut OrthographicProjection, With<Camera2d>>,
+) {
+    const ZOOM_SPEED: f32 = 0.1;
+    const MIN_SCALE: f32 = 0.35;
+    const MAX_SCALE: f32 = 1.5;
+
+    for event in mouse_wheel_events.read() {
+        let zoom_change = -event.y * ZOOM_SPEED;
+        camera.scale = (camera.scale + zoom_change).clamp(MIN_SCALE, MAX_SCALE);
+    }
 }

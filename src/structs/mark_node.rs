@@ -1,5 +1,7 @@
 use core::f32;
 
+use structs::{CursorPosition, FirstPos, TikzComponent};
+
 use crate::*;
 
 #[derive(Component)]
@@ -46,21 +48,18 @@ pub fn mark_node(
 ) {
     let cursor = cursor_pos.pos;
 
-    let closest_entity = q_nodes
-        .iter()
-        .fold(
-            (Entity::PLACEHOLDER, f32::MAX),
-            |(closest_ent, closest_dist), (node_ent, node_transform)| {
-                let node_pos = node_transform.translation().truncate();
-                let dist = cursor.distance(node_pos);
-                if dist < closest_dist {
-                    (node_ent, dist)
-                } else {
-                    (closest_ent, closest_dist)
-                }
-            },
-        )
-        .0;
+    let (closest_entity, _) = q_nodes.iter().fold(
+        (Entity::PLACEHOLDER, f32::MAX),
+        |(closest_ent, closest_dist), (node_ent, node_transform)| {
+            let node_pos = node_transform.translation().truncate();
+            let dist = cursor.distance(node_pos);
+            if dist < closest_dist {
+                (node_ent, dist)
+            } else {
+                (closest_ent, closest_dist)
+            }
+        },
+    );
 
     if closest_entity != Entity::PLACEHOLDER {
         if let Ok(entity) = marker.get_single() {
