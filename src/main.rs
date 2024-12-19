@@ -25,14 +25,14 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(TextInputPlugin)
+        .add_plugins(ui::UiPlugin)
         .insert_resource(structs::TikzComponent::Resistor)
         .insert_resource(structs::CursorPosition::default())
-        .insert_resource(Focused(Entity::PLACEHOLDER))
         .insert_resource(create::CurrentFile(
             "/home/guilherme/projects/circuits/test.tex".to_string(),
         ))
         .add_plugins(graph::GraphPlugin)
-        .add_systems(Startup, (setup, ui::ui, components::load_handles))
+        .add_systems(Startup, (setup, components::load_handles))
         .add_systems(
             Update,
             (
@@ -46,8 +46,6 @@ fn main() {
                 input::camera_movement,
                 input::cancel_action.run_if(input_just_pressed(KeyCode::Escape)),
                 input::zoom_scale,
-                ui::update_radio.run_if(resource_changed::<TikzComponent>),
-                ui::focus_right_input.run_if(resource_changed::<Focused>),
             ),
         )
         .add_observer(create::create)
@@ -56,12 +54,8 @@ fn main() {
         .add_observer(actions::delete_component)
         .add_observer(actions::update_info)
         .add_observer(actions::update_component_label)
-        .add_observer(ui::submit_event)
         .run();
 }
-
-#[derive(Resource, Debug)]
-struct Focused(Entity);
 
 fn setup(mut commands: Commands) {
     commands.spawn(Camera2d);

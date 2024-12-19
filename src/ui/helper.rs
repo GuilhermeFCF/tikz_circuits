@@ -1,8 +1,6 @@
-use crate::input_widget::TextInput;
-use crate::input_widget::TextInputInactive;
-use crate::input_widget::TextInputSettings;
-use crate::input_widget::TextInputSubmitEvent;
-use crate::input_widget::TextInputTextFont;
+use crate::input_widget::{
+    TextInput, TextInputInactive, TextInputPlaceholder, TextInputSettings, TextInputTextFont,
+};
 use crate::TikzComponent;
 use bevy::prelude::*;
 
@@ -22,16 +20,16 @@ pub fn draw_text<'a>(p: &'a mut ChildBuilder, text: &str) -> EntityCommands<'a> 
     draw_text_with_size(p, text, 10.)
 }
 
-pub fn heading(p: &mut ChildBuilder, text: &str) {
-    draw_text_with_size(p, text, 20.);
+pub fn heading<'a>(p: &'a mut ChildBuilder, text: &str) -> EntityCommands<'a> {
+    draw_text_with_size(p, text, 20.)
 }
 
-pub fn create_grid<'a>(p: &'a mut ChildBuilder) -> EntityCommands<'a> {
+pub fn create_grid<'a>(p: &'a mut ChildBuilder, num_cols: usize) -> EntityCommands<'a> {
     p.spawn(Node {
         width: Val::Percent(100.),
         display: Display::Grid,
         row_gap: Val::Px(3.),
-        grid_template_columns: vec![GridTrack::auto(); 6],
+        grid_template_columns: vec![GridTrack::auto(); num_cols],
         ..default()
     })
 }
@@ -73,13 +71,15 @@ fn default_node() -> Node {
 pub struct RButton(TikzComponent);
 
 fn on_click(
-    trigger: Trigger<Pointer<Click>>,
+    mut trigger: Trigger<Pointer<Click>>,
     buttons: Query<&RButton>,
     mut cc: ResMut<TikzComponent>,
 ) {
+    info!("Clicking input");
     let selected = trigger.entity();
     let t = buttons.get(selected).unwrap();
     *cc = t.0;
+    trigger.propagate(false);
 }
 
 pub fn update_radio(
@@ -117,7 +117,7 @@ pub fn separator(p: &mut ChildBuilder) {
     ));
 }
 
-pub fn text_input(p: &mut ChildBuilder) {
+pub fn text_input<'a>(p: &'a mut ChildBuilder, placeholder: &str) -> EntityCommands<'a> {
     p.spawn((
         Node {
             width: Val::Px(200.),
@@ -126,6 +126,10 @@ pub fn text_input(p: &mut ChildBuilder) {
         },
         BackgroundColor(spat_color(0.1)),
         TextInput,
+        TextInputPlaceholder {
+            value: placeholder.to_string(),
+            ..default()
+        },
         TextInputTextFont(TextFont {
             font_size: 10.,
             ..default()
@@ -136,25 +140,23 @@ pub fn text_input(p: &mut ChildBuilder) {
             ..default()
         },
     ))
-    .observe(on_selected_text_input);
     // Create observer on submit event that passes to selected component.
 }
 
-fn on_selected_text_input(trigger: Trigger<Pointer<Click>>, mut focused: ResMut<crate::Focused>) {
+pub fn on_selected_text_input(
+    trigger: Trigger<Pointer<Click>>,
+    mut focused: ResMut<super::Focused>,
+) {
     let entity = trigger.entity();
-    *focused = crate::Focused(entity);
+    *focused = super::Focused(entity);
     info!("Clicking text input {focused:?}");
 }
 
 pub fn focus_right_input(
-    focused: Res<crate::Focused>,
+    focused: Res<super::Focused>,
     mut buttons: Query<(Entity, &mut TextInputInactive)>,
 ) {
     for (entity, mut inactive) in buttons.iter_mut() {
         *inactive = TextInputInactive(entity != focused.0);
     }
-}
-
-pub fn submit_event(_: Trigger<TextInputSubmitEvent>, mut focused: ResMut<crate::Focused>) {
-    *focused = crate::Focused(Entity::PLACEHOLDER);
 }

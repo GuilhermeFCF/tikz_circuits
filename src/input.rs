@@ -14,9 +14,9 @@ pub fn handle_left_click(
     marked_node: Single<Entity, With<Marker>>,
     selectable: Query<(Entity, &GlobalTransform), With<Selectable>>,
     selected: Query<(Entity, &GlobalTransform), With<Selected>>,
-    mut focused: ResMut<crate::Focused>,
+    mut focused: ResMut<ui::Focused>,
 ) {
-    *focused = crate::Focused(Entity::PLACEHOLDER);
+    *focused = ui::Focused(Entity::PLACEHOLDER);
     if !cursor_position.within_grid {
         return;
     }
@@ -68,7 +68,7 @@ pub fn change_current_component(
     keys: Res<ButtonInput<KeyCode>>,
     mut cc: ResMut<TikzComponent>,
     mut exit: EventWriter<AppExit>,
-    focused: Res<Focused>,
+    focused: Res<ui::Focused>,
 ) {
     let Some(key_map) = keys.get_just_pressed().next() else {
         return;
@@ -99,7 +99,7 @@ pub fn camera_movement(
     keys: Res<ButtonInput<KeyCode>>,
     mut camera: Single<&mut Transform, With<Camera2d>>,
     time: Res<Time>,
-    focused: Res<Focused>,
+    focused: Res<ui::Focused>,
 ) {
     if focused.0 != Entity::PLACEHOLDER {
         return;

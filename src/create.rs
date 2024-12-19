@@ -55,10 +55,7 @@ pub fn create(
         let label = format!("(A{})", i + 1);
         pos_label.insert(coord, label.clone());
         let coord = coord.tikz_coords();
-        buffer.push_str(&format!(
-            "\t({}, {}) coordinate {label}\n",
-            coord.x, coord.y
-        ));
+        buffer.push_str(&format!("({}, {}) coordinate {label}\n", coord.x, coord.y));
     }
 
     let map_to_label = |pos: Position| -> String {
@@ -82,7 +79,7 @@ pub fn create(
             ComponentStructure::Node(position) => {
                 let position = (*position).into();
                 buffer.push_str(&format!(
-                    "\t{label} node[{c_type}{c_info}]{c_label}{{}}\n",
+                    "{label} node[{c_type}{c_info}]{c_label}{{}}\n",
                     label = map_to_label(position),
                 ));
             }
@@ -90,7 +87,7 @@ pub fn create(
                 let initial = (*initial).into();
                 let fin = (*fin).into();
                 buffer.push_str(&format!(
-                    "\t{label} to[{c_type}{c_info}] {final_label}\n",
+                    "{label} to[{c_type}{c_info}] {final_label}\n",
                     label = map_to_label(initial),
                     final_label = map_to_label(fin),
                 ));
