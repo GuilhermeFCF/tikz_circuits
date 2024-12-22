@@ -85,8 +85,8 @@ fn draw_arc(p0: Vec3, p1: Vec3, p2: Vec3) -> Vec<[f32; 3]> {
     arc
 }
 
-// FIXME: This only works with 4 coils, so why ask for an arbitrary amount of coils
-fn draw_coil(coils: usize) -> Vec<[f32; 3]> {
+fn draw_coil() -> Vec<[f32; 3]> {
+    let coils = 4;
     let size = 500;
     let mut circle = Vec::with_capacity(coils * size);
     let radius = 1f32 / coils as f32;
@@ -135,7 +135,7 @@ pub fn load_handles(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
     {
         // Inductor
         let mut mesh = Mesh::new(Topology::PointList, RenderAssetUsages::RENDER_WORLD);
-        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, draw_coil(4));
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, draw_coil());
         let mesh = vec![meshes.add(mesh).into()];
         let info = InfoMeshes { meshes: mesh };
         map.insert(TikzComponent::Inductor, info);

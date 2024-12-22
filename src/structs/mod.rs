@@ -4,18 +4,12 @@ use bevy::ecs::{component::ComponentId, world::DeferredWorld};
 
 mod anchor;
 mod cursor_position;
-mod first_pos;
-mod mark_node;
 mod position;
-mod select_node;
 mod tikz_component;
 
 pub use anchor::*;
 pub use cursor_position::*;
-pub use first_pos::*;
-pub use mark_node::*;
 pub use position::*;
-pub use select_node::*;
 pub use tikz_component::*;
 
 #[derive(Component)]

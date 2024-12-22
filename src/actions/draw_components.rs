@@ -3,9 +3,12 @@ use bevy::prelude::*;
 
 use crate::components::Handles;
 use crate::graph::UpdateGraph;
-use crate::{structs::*, TEXT_SCALE};
+use crate::{actions, structs::*, TEXT_SCALE};
 
 use crate::GRID_SIZE;
+
+#[derive(Component)]
+pub struct ActualComponent;
 
 fn label(height: f32) -> impl Bundle {
     (
@@ -15,41 +18,51 @@ fn label(height: f32) -> impl Bundle {
     )
 }
 
-fn initial_component(comp_type: TikzComponent, translation: Vec3, angle: f32) -> impl Bundle {
+fn initial_component(
+    comp_type: TikzComponent,
+    structure: ComponentStructure,
+    translation: Vec3,
+    angle: f32,
+) -> impl Bundle {
     (
         comp_type,
+        structure,
         Visibility::default(),
         Transform::from_translation(translation).with_rotation(Quat::from_rotation_z(angle)),
-        Selectable,
+        super::select_node::Selectable,
         ComponentLabel {
             label: "".to_string(),
         },
         Info::default(),
     )
 }
+
+#[derive(Component)]
+pub struct FirstPos;
+
 #[derive(Event)]
 pub struct InitiateComponent {
-    pub ent: Entity,
+    pub pos: Vec2,
 }
 
 pub fn draw_initial_component(
     trigger: Trigger<InitiateComponent>,
     mut commands: Commands,
-    dots: Query<Entity, With<FirstPos>>,
+    dots: Query<(Entity, &GlobalTransform), With<FirstPos>>,
     cc: Res<TikzComponent>,
-    transform_query: Query<&GlobalTransform>,
     handles: Res<Handles>,
     material: ResMut<Assets<ColorMaterial>>,
 ) {
-    let InitiateComponent { ent } = trigger.event();
-    let transform = transform_query.get(*ent).unwrap();
+    let InitiateComponent { pos } = trigger.event();
+    let pos = pos.extend(0.);
 
     let text_height = cc.get_label_height();
-    let initial = transform_query.get(*ent).unwrap().translation();
+    let initial = pos;
+    let structure = ComponentStructure::Node(initial.truncate());
     match *cc {
         TikzComponent::Dot => {
-            commands
-                .spawn(initial_component(*cc, initial, 0.0))
+            let dot = commands
+                .spawn(initial_component(*cc, structure, initial, 0.0))
                 .with_children(|p| {
                     p.spawn(label(text_height));
 
@@ -57,40 +70,47 @@ pub fn draw_initial_component(
                         Color::Srgba(Srgba::gray(0.5)),
                         Vec2::splat(4.0),
                     ));
-                });
+                })
+                .id();
+            commands.trigger(UpdateGraph(structure, dot));
             return;
         }
         x if x.is_single() => {
-            draw_from_mesh(&mut commands, *cc, handles, material, initial, initial);
+            draw_from_mesh(&mut commands, *cc, handles, material, structure);
             return;
         }
         _ => {}
     }
 
-    let Ok(dot_ent) = dots.get_single() else {
-        commands.entity(*ent).insert(FirstPos);
+    let Ok((dot_ent, dot_transform)) = dots.get_single() else {
+        commands.spawn((
+            Sprite::default(),
+            Transform::from_xyz(pos.x, pos.y, 0.0).with_scale(Vec3::splat(2.0)),
+            FirstPos,
+        ));
         return;
     };
 
-    let dot_transform = transform_query.get(dot_ent).unwrap();
-    commands.entity(dot_ent).remove::<FirstPos>();
+    let dot_translation = dot_transform.translation();
+
+    // let dot_transform = transform_query.get(dot_ent).unwrap().translation();
+    commands.entity(dot_ent).despawn();
 
     // NOTE: Could add aditional requirements, like having a certain distance for a certain type
     // of component
-    if transform == dot_transform {
+    if pos == dot_translation {
         return;
     }
 
-    let initial = transform_query.get(dot_ent).unwrap().translation();
-    let fin = transform_query.get(*ent).unwrap().translation();
-    info!("{ent}, {dot_ent}");
+    let initial = dot_translation;
+    let fin = pos;
     let middle = (initial + fin) / 2.0;
     let len = (fin - initial).length();
     let angle = (fin.y - initial.y).atan2(fin.x - initial.x);
-    info!("{fin}, {middle}, {len}, {angle}");
+    let structure = ComponentStructure::To([initial.truncate(), fin.truncate()]);
     if *cc == TikzComponent::Line {
-        commands
-            .spawn(initial_component(*cc, middle, angle))
+        let line = commands
+            .spawn(initial_component(*cc, structure, middle, angle))
             .with_children(|p| {
                 p.spawn(label(text_height));
 
@@ -101,10 +121,12 @@ pub fn draw_initial_component(
                     },
                     Transform::from_scale(Vec3::new(len, 0.5, 1.0)),
                 ));
-            });
+            })
+            .id();
+        commands.trigger(UpdateGraph(structure, line));
         return;
     }
-    draw_from_mesh(&mut commands, *cc, handles, material, initial, fin);
+    draw_from_mesh(&mut commands, *cc, handles, material, structure);
 }
 
 pub fn draw_from_mesh(
@@ -112,25 +134,27 @@ pub fn draw_from_mesh(
     cc: TikzComponent,
     handles: Res<Handles>,
     mut material: ResMut<Assets<ColorMaterial>>,
-    initial: Vec3,
-    fin: Vec3,
+    structure: ComponentStructure,
 ) {
     const SIZE: f32 = GRID_SIZE * 1.5;
-    let middle = (initial + fin) / 2.0;
-    let len = (fin - initial).length();
-    let angle = (fin.y - initial.y).atan2(fin.x - initial.x);
-    let text_height = cc.get_label_height();
-    let structure = match cc {
-        x if x.is_single() => ComponentStructure::Node(initial.truncate()),
-        _ => ComponentStructure::To([initial.truncate(), fin.truncate()]),
+    let (initial, len, angle, middle) = match structure {
+        ComponentStructure::To([initial, fin]) => {
+            let middle = (initial + fin) / 2.0;
+            let len = (fin - initial).length();
+            let angle = (fin.y - initial.y).atan2(fin.x - initial.x);
+            (initial, len, angle, middle)
+        }
+        ComponentStructure::Node(initial) => (initial, 0., 0., initial),
     };
+    let text_height = cc.get_label_height();
     let component = commands
         .spawn((
-            initial_component(cc, middle, angle),
+            initial_component(cc, structure, middle.extend(0.), angle),
             BuildInfo::new(angle, len),
-            structure,
-            Anchored(initial.truncate()),
+            Anchored(initial),
         ))
+        .observe(actions::select_node::on_add_selected)
+        .observe(actions::select_node::on_remove_selected)
         .with_children(|p| {
             p.spawn(label(text_height));
 
@@ -140,6 +164,7 @@ pub fn draw_from_mesh(
                     mesh.clone(),
                     MeshMaterial2d(material.add(Color::WHITE)),
                     Transform::from_scale(Vec3::new(SIZE, SIZE, 1.0)),
+                    ActualComponent,
                 ));
             }
 
@@ -228,7 +253,6 @@ fn fill_gate_labels(gate: Entity, commands: &mut Commands, comp_type: TikzCompon
                     },
                 ))
                 .id();
-            info!("{in1} {in2} {out}");
 
             commands.entity(gate).add_children(&[in1, in2, out]);
         }

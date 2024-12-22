@@ -43,18 +43,19 @@ pub fn create_col<'a>(p: &'a mut ChildBuilder) -> EntityCommands<'a> {
     })
 }
 
+#[allow(dead_code)]
 pub fn create_row<'a>(p: &'a mut ChildBuilder) -> EntityCommands<'a> {
     p.spawn(Node {
         flex_direction: FlexDirection::Row,
-        padding: UiRect::all(Val::Px(10.)),
+        // padding: UiRect::all(Val::Px(10.)),
         column_gap: Val::Px(10.),
         justify_content: JustifyContent::Center,
+        align_content: AlignContent::Center,
         ..default()
     })
 }
 fn default_node() -> Node {
     Node {
-        display: Display::Grid,
         width: Val::Px(12.),
         height: Val::Px(12.),
         border: UiRect::all(Val::Px(4.)),
@@ -71,15 +72,13 @@ fn default_node() -> Node {
 pub struct RButton(TikzComponent);
 
 fn on_click(
-    mut trigger: Trigger<Pointer<Click>>,
+    trigger: Trigger<Pointer<Click>>,
     buttons: Query<&RButton>,
     mut cc: ResMut<TikzComponent>,
 ) {
-    info!("Clicking input");
     let selected = trigger.entity();
     let t = buttons.get(selected).unwrap();
     *cc = t.0;
-    trigger.propagate(false);
 }
 
 pub fn update_radio(
@@ -121,7 +120,7 @@ pub fn text_input<'a>(p: &'a mut ChildBuilder, placeholder: &str) -> EntityComma
     p.spawn((
         Node {
             width: Val::Px(200.),
-            height: Val::Px(14.),
+            height: Val::Px(16.),
             ..default()
         },
         BackgroundColor(spat_color(0.1)),
@@ -131,7 +130,7 @@ pub fn text_input<'a>(p: &'a mut ChildBuilder, placeholder: &str) -> EntityComma
             ..default()
         },
         TextInputTextFont(TextFont {
-            font_size: 10.,
+            font_size: 12.,
             ..default()
         }),
         TextInputInactive(true),
@@ -144,19 +143,24 @@ pub fn text_input<'a>(p: &'a mut ChildBuilder, placeholder: &str) -> EntityComma
 }
 
 pub fn on_selected_text_input(
-    trigger: Trigger<Pointer<Click>>,
-    mut focused: ResMut<super::Focused>,
+    mut trigger: Trigger<Pointer<Click>>,
+    mut focused: ResMut<super::FocusedInputText>,
 ) {
     let entity = trigger.entity();
-    *focused = super::Focused(entity);
-    info!("Clicking text input {focused:?}");
+    *focused = super::FocusedInputText(entity);
+    trigger.propagate(false);
 }
 
 pub fn focus_right_input(
-    focused: Res<super::Focused>,
+    focused: Res<super::FocusedInputText>,
     mut buttons: Query<(Entity, &mut TextInputInactive)>,
 ) {
     for (entity, mut inactive) in buttons.iter_mut() {
         *inactive = TextInputInactive(entity != focused.0);
     }
+}
+
+#[allow(dead_code)]
+pub fn debug_click(trigger: Trigger<Pointer<Click>>) {
+    info!("Clicked {}", trigger.entity())
 }

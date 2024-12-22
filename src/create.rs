@@ -14,7 +14,7 @@ pub fn create(
     mut commands: Commands,
     components: Query<(Entity, &ComponentStructure, &TikzComponent, &Info)>,
     mut text: Single<&mut Text, With<CircuitText>>,
-    parents: Query<&ComponentLabel, With<Children>>,
+    parents: Query<&ComponentLabel>,
     children: Query<(&GlobalTransform, &Parent, &ComponentLabel)>,
 ) {
     let mut pos_label = HashMap::new();
@@ -46,15 +46,15 @@ pub fn create(
     }
 
     let mut buffer = "\\draw\n".to_string();
-    for (i, coord) in pos_map
+    for (i, pos) in pos_map
         .into_iter()
         .filter(|&(_, seen)| seen > 2)
         .map(|(pos, _)| pos)
         .enumerate()
     {
         let label = format!("(A{})", i + 1);
-        pos_label.insert(coord, label.clone());
-        let coord = coord.tikz_coords();
+        pos_label.insert(pos, label.clone());
+        let coord = pos.tikz_coords();
         buffer.push_str(&format!("({}, {}) coordinate {label}\n", coord.x, coord.y));
     }
 
@@ -62,16 +62,13 @@ pub fn create(
         if let Some(label) = pos_label.get(&pos) {
             label.to_string()
         } else {
-            let pos = pos.tikz_coords();
-            format!("({}, {})", pos.x, pos.y)
+            let coord = pos.tikz_coords();
+            format!("({}, {})", coord.x, coord.y)
         }
     };
 
     for (ent, component, c_type, info) in &components {
-        // FIXME: This is kinda wieeerd
-        let Ok(parent_label) = parents.get(ent) else {
-            return;
-        };
+        let parent_label = parents.get(ent).unwrap();
         let c_label = get_component_label(parent_label);
         let c_info = get_component_info(info);
         let c_type = c_type.tikz_type();

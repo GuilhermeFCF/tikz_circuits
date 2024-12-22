@@ -1,62 +1,16 @@
-use crate::actions::DeleteComponent;
+use crate::actions::*;
 use bevy::{app::AppExit, input::mouse::MouseWheel};
-use structs::{CursorPosition, FirstPos, Marker, Selectable, Selected, TikzComponent};
+use structs::TikzComponent;
 
 use crate::*;
 
-fn close_to(pos: Vec2, other_pos: Vec2) -> bool {
-    pos.distance(other_pos) < GRID_SIZE
-}
-
-pub fn handle_left_click(
-    mut commands: Commands,
-    cursor_position: Res<CursorPosition>,
-    marked_node: Single<Entity, With<Marker>>,
-    selectable: Query<(Entity, &GlobalTransform), With<Selectable>>,
-    selected: Query<(Entity, &GlobalTransform), With<Selected>>,
-    mut focused: ResMut<ui::Focused>,
-) {
-    *focused = ui::Focused(Entity::PLACEHOLDER);
-    if !cursor_position.within_grid {
-        return;
-    }
-    let node_entity = *marked_node;
-    let cursor = cursor_position.pos;
-    if let Ok((selected_entity, selected_transform)) = selected.get_single() {
-        commands.entity(selected_entity).remove::<Selected>();
-        let selected_pos = selected_transform.translation().truncate();
-        if close_to(cursor, selected_pos) {
-            return;
-        }
-    }
-    for (ent, transform) in &selectable {
-        let selected_pos = transform.translation().truncate();
-        if close_to(cursor, selected_pos) {
-            commands.entity(ent).insert(Selected);
-            return;
-        }
-    }
-    commands.trigger(actions::draw_components::InitiateComponent { ent: node_entity })
-}
-
-pub fn cancel_action(
-    mut commands: Commands,
-    q_first: Query<Entity, With<crate::structs::FirstPos>>,
-    selected: Query<Entity, With<Selected>>,
-) {
-    if let Ok(ent) = q_first.get_single() {
-        commands.entity(ent).remove::<crate::structs::FirstPos>();
-    }
-
+pub fn cancel_action(mut commands: Commands, selected: Query<Entity, With<select_node::Selected>>) {
     if let Ok(ent) = selected.get_single() {
-        commands.entity(ent).remove::<Selected>();
+        commands.entity(ent).remove::<select_node::Selected>();
     }
 }
 
-pub fn remove_all(
-    mut commands: Commands,
-    q_points: Query<Entity, (Without<FirstPos>, With<TikzComponent>)>,
-) {
+pub fn remove_all(mut commands: Commands, q_points: Query<Entity, With<TikzComponent>>) {
     if q_points.is_empty() {
         return;
     }
@@ -68,7 +22,7 @@ pub fn change_current_component(
     keys: Res<ButtonInput<KeyCode>>,
     mut cc: ResMut<TikzComponent>,
     mut exit: EventWriter<AppExit>,
-    focused: Res<ui::Focused>,
+    focused: Res<ui::FocusedInputText>,
 ) {
     let Some(key_map) = keys.get_just_pressed().next() else {
         return;
@@ -99,7 +53,7 @@ pub fn camera_movement(
     keys: Res<ButtonInput<KeyCode>>,
     mut camera: Single<&mut Transform, With<Camera2d>>,
     time: Res<Time>,
-    focused: Res<ui::Focused>,
+    focused: Res<ui::FocusedInputText>,
 ) {
     if focused.0 != Entity::PLACEHOLDER {
         return;

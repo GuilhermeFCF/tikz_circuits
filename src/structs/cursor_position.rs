@@ -1,33 +1,34 @@
+use crate::{structs, ui};
 use bevy::prelude::*;
 
-use super::{GRID_COUNT, GRID_SIZE};
+use super::GRID_SIZE;
+
+#[derive(Component)]
+pub struct CursorIdentifier;
+
+#[derive(Component)]
+pub struct ZeroMarker;
+
 #[derive(Resource, Default)]
 pub struct CursorPosition {
     pub pos: Vec2,
-    pub within_grid: bool,
 }
 
 impl CursorPosition {
     pub fn update_pos(&mut self, pos: impl Into<Vec2>) {
         let pos: Vec2 = pos.into();
-        *self = Self {
-            pos,
-            within_grid: within_grid(pos),
-        }
+        *self = Self { pos }
     }
-}
-
-const fn within_grid(pos: Vec2) -> bool {
-    const BOUND: f32 = GRID_COUNT as f32 * GRID_SIZE / 2.0;
-    pos.x <= BOUND + 160.0 && pos.x >= -BOUND + 160.0 && pos.y <= BOUND && pos.y >= -BOUND
 }
 
 pub fn get_cursor_position(
     mut cursor: ResMut<CursorPosition>,
     window: Single<&Window>,
-    q_camera: Single<(&Camera, &GlobalTransform)>,
+    q_camera: Single<(&Camera, &OrthographicProjection, &GlobalTransform)>,
+    mut cursor_identifier: Single<&mut Transform, With<CursorIdentifier>>,
+    mut ui_pos: Single<&mut Text, With<ui::PositionIdentifier>>,
 ) {
-    let (camera, camera_transform) = *q_camera;
+    let (camera, projection, camera_transform) = *q_camera;
     let Some(cursor_position) = window.cursor_position() else {
         return;
     };
@@ -35,5 +36,13 @@ pub fn get_cursor_position(
     let Ok(point) = camera.viewport_to_world_2d(camera_transform, cursor_position) else {
         return;
     };
+    // TODO: multiply by a value that changes based on camera zoom.
+    let scale = if projection.scale <= 0.5 { 0.5 } else { 1. };
+    let precision = scale * GRID_SIZE;
+
+    let point = (point / precision).round() * precision;
     cursor.update_pos(point);
+    cursor_identifier.translation = point.extend(0.);
+    let tikz = structs::Position::from(point).tikz_coords();
+    ui_pos.0 = format!("M({}, {}) T({}, {})", point.x, point.y, tikz.x, tikz.y);
 }

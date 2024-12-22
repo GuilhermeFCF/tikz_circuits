@@ -14,7 +14,7 @@ mod structs;
 mod ui;
 use input_widget::TextInputPlugin;
 
-use structs::{Markable, TikzComponent};
+use structs::TikzComponent;
 
 const TEXT_SCALE: f32 = 0.6;
 const GRID_SIZE: f32 = 16.0;
@@ -37,10 +37,8 @@ fn main() {
             Update,
             (
                 structs::get_cursor_position,
-                structs::mark_node,
+                actions::select_node::despawn_selected.run_if(input_just_pressed(KeyCode::Delete)),
                 actions::move_entity.run_if(input_pressed(MouseButton::Right)),
-                structs::despawn_selected.run_if(input_just_pressed(KeyCode::Delete)),
-                input::handle_left_click.run_if(input_just_pressed(MouseButton::Left)),
                 input::remove_all.run_if(input_just_pressed(MouseButton::Middle)),
                 input::change_current_component,
                 input::camera_movement,
@@ -52,7 +50,6 @@ fn main() {
         .add_observer(create::update_file)
         .add_observer(actions::draw_components::draw_initial_component)
         .add_observer(actions::delete_component)
-        .add_observer(actions::update_info)
         .add_observer(actions::update_component_label)
         .run();
 }
@@ -60,16 +57,50 @@ fn main() {
 fn setup(mut commands: Commands) {
     commands.spawn(Camera2d);
 
-    // Rendering default nodes
-    for x_i in 0..GRID_COUNT {
-        for y_i in 0..GRID_COUNT {
-            let x = x_i as f32 * GRID_SIZE - OFFSET + 160.;
-            let y = y_i as f32 * GRID_SIZE - OFFSET;
+    commands
+        .spawn((
+            Visibility::default(),
+            Transform::from_xyz(160., 0., 0.),
+            structs::ZeroMarker,
+        ))
+        .with_children(|commands| {
             commands.spawn((
-                Sprite::default(),
-                Transform::from_xyz(x, y, -100.0).with_scale(Vec3::splat(1.0)),
-                Markable,
+                Sprite {
+                    color: Color::srgb(1., 0., 0.),
+                    ..default()
+                },
+                Transform::from_scale(Vec3::new(16., 0.5, 1.0)),
             ));
-        }
+            commands.spawn((
+                Sprite {
+                    color: Color::srgb(1., 0., 0.),
+                    ..default()
+                },
+                Transform::from_scale(Vec3::new(0.5, 16., 1.)),
+            ));
+        });
+
+    commands.spawn((
+        Sprite::default(),
+        Transform::from_scale(Vec3::splat(2.0)),
+        structs::CursorIdentifier,
+    ));
+    let count = 10 * GRID_COUNT;
+    for x in -(count as isize) / 2..=count as isize / 2 {
+        let x = x as f32 * GRID_SIZE;
+        commands.spawn((
+            Sprite {
+                color: Color::srgb(0.08, 0.08, 0.08),
+                ..default()
+            },
+            Transform::from_xyz(x + 160., 0., -100.0).with_scale(Vec3::new(0.5, 4000., 0.)),
+        ));
+        commands.spawn((
+            Sprite {
+                color: Color::srgb(0.08, 0.08, 0.08),
+                ..default()
+            },
+            Transform::from_xyz(160., x, -100.0).with_scale(Vec3::new(4000., 0.5, 0.)),
+        ));
     }
 }

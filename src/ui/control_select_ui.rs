@@ -14,7 +14,7 @@ pub struct LabelIdentifier;
 pub struct ScaleIdentifier;
 
 pub fn change_ui_visibility(
-    _: Trigger<OnAdd, crate::structs::Selected>,
+    _: Trigger<OnAdd, crate::actions::select_node::Selected>,
     selected_interface: Single<&mut Visibility, With<SelectedInterface>>,
     component_identifier: Single<
         &mut Text,
@@ -42,7 +42,7 @@ pub fn change_ui_visibility(
     >,
     selected: Single<
         (&crate::TikzComponent, &crate::structs::Info),
-        With<crate::structs::Selected>,
+        With<crate::actions::select_node::Selected>,
     >,
 ) {
     let (cc, info) = *selected;
@@ -59,7 +59,7 @@ pub fn change_ui_visibility(
 }
 
 pub fn ui_visibility(
-    _: Trigger<OnRemove, crate::structs::Selected>,
+    _: Trigger<OnRemove, crate::actions::select_node::Selected>,
     selected_interface: Single<&mut Visibility, With<SelectedInterface>>,
 ) {
     let mut visibility = selected_interface.into_inner();
@@ -69,9 +69,9 @@ pub fn ui_visibility(
 pub fn submit_event(
     trigger: Trigger<TextInputSubmitEvent>,
     mut commands: Commands,
-    mut focused: ResMut<super::Focused>,
+    mut focused: ResMut<super::FocusedInputText>,
     is_label: Query<&LabelIdentifier>,
-    mut selected: Single<&mut crate::structs::Info, With<crate::structs::Selected>>,
+    mut selected: Single<&mut crate::structs::Info, With<crate::actions::select_node::Selected>>,
 ) {
     let new_value = trigger.event();
     let entity = trigger.entity();
@@ -81,5 +81,5 @@ pub fn submit_event(
         Err(_) => selected.scale = new_value.value.clone(),
     }
     commands.trigger(ConvertCircuit);
-    *focused = super::Focused(Entity::PLACEHOLDER);
+    *focused = super::FocusedInputText(Entity::PLACEHOLDER);
 }

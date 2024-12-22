@@ -16,6 +16,7 @@ bevy = {version = "0.15", default-features = false, features = [
 	"bevy_window",
 ]}
 bevy_egui = "0.31"
+arboard = "3.4.1"
 petgraph = "0.6.5"
 
 [profile.dev.package."*"]

@@ -1,46 +1,20 @@
-use crate::create::ConvertCircuit;
 use crate::graph::RemoveFromGraph;
-use crate::structs::{Anchored, ComponentLabel, Info, Marker, Selected, TikzComponent};
+use crate::structs::{Anchored, ComponentLabel, CursorPosition, TikzComponent};
 use bevy::prelude::*;
 use bevy::utils::HashMap;
 
 pub mod draw_components;
+pub mod select_node;
 
 #[allow(clippy::type_complexity)]
 pub fn move_entity(
     mut commands: Commands,
-    marked: Single<&GlobalTransform, With<Marker>>,
-    component: Single<Entity, (With<Selected>, With<Anchored>)>,
+    cursor_positon: Res<CursorPosition>,
+    component: Single<Entity, (With<select_node::Selected>, With<Anchored>)>,
 ) {
     commands
         .entity(*component)
-        .insert(Anchored(marked.translation().truncate()));
-}
-
-#[derive(Event)]
-pub enum UpdateInfo {
-    Label(String),
-    Scale(String),
-}
-
-pub fn update_info(trigger: Trigger<UpdateInfo>, mut commands: Commands, query: Query<&Info>) {
-    let ent = trigger.entity();
-    let info = query.get(ent).unwrap();
-    let old_label = info.label.clone();
-    let old_scale = info.scale.clone();
-    let info = match trigger.event() {
-        UpdateInfo::Label(label) => Info {
-            label: label.to_string(),
-            scale: old_scale,
-        },
-        UpdateInfo::Scale(scale) => Info {
-            label: old_label,
-            scale: scale.to_string(),
-        },
-    };
-
-    commands.entity(ent).insert(info);
-    commands.trigger(ConvertCircuit);
+        .insert(Anchored(cursor_positon.pos));
 }
 
 #[derive(Event)]
