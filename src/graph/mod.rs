@@ -1,5 +1,8 @@
 use bevy::{input::common_conditions::input_just_pressed, prelude::*, utils::HashMap};
-use petgraph::{graph::NodeIndex, Graph, Undirected};
+use petgraph::{
+    graph::{EdgeIndex, NodeIndex},
+    Graph, Undirected,
+};
 
 use crate::{
     create::ConvertCircuit,
@@ -41,11 +44,29 @@ struct CircuitGraph {
 }
 
 impl CircuitGraph {
-    pub fn get_pos_or_insert(&self, index: &NodeIndex) -> Option<Position> {
-        self.positions.get(index).copied()
+    #[allow(dead_code)]
+    pub fn get_pos(&self, index: NodeIndex) -> Option<Position> {
+        self.positions.get(&index).copied()
     }
-    pub fn get_index_or_insert(&self, index: &Position) -> Option<NodeIndex> {
-        self.indexes.get(index).copied()
+
+    pub fn get_index_or_add(&mut self, pos: Position) -> NodeIndex {
+        if self.indexes.get(&pos).is_some() {
+            return self.indexes.get(&pos).copied().unwrap();
+        }
+
+        let index = self.add_node(pos);
+        self.indexes.insert(pos, index);
+        self.positions.insert(index, pos);
+
+        index
+    }
+
+    pub fn add_edge(&mut self, a: NodeIndex, b: NodeIndex, entity: Entity) -> EdgeIndex {
+        self.graph.add_edge(a, b, entity)
+    }
+
+    pub fn add_node(&mut self, pos: Position) -> NodeIndex {
+        self.graph.add_node(pos)
     }
 }
 
@@ -53,29 +74,29 @@ impl CircuitGraph {
 pub struct UpdateGraph(pub ComponentStructure, pub Entity);
 
 fn update_graph(
-    trigger: Trigger<UpdateGraph>, mut commands: Commands, mut graph: Res<CircuitGraph>,
+    trigger: Trigger<UpdateGraph>, mut commands: Commands, mut graph: ResMut<CircuitGraph>,
 ) {
     let UpdateGraph(structure, entity) = *trigger.event();
 
     let (initial, fin) = match structure {
         ComponentStructure::Node(pos_v) => {
             let pos = Position::from(pos_v);
-            let index = graph.get_index_or_insert(&pos).unwrap();
+            let index = graph.get_index_or_add(pos);
             (index, index)
         }
         ComponentStructure::To([in_pos_v, fin_pos_v]) => {
             let in_pos = Position::from(in_pos_v);
             let fin_pos = Position::from(fin_pos_v);
-            let in_index = graph.get_index_or_insert(&in_pos).unwrap();
-            let fin_index = graph.get_index_or_insert(&fin_pos).unwrap();
-            //
+            let in_index = graph.get_index_or_add(in_pos);
+            let fin_index = graph.get_index_or_add(fin_pos);
             (in_index, fin_index)
         }
     };
+    graph.add_edge(initial, fin, entity);
+    commands.trigger(ConvertCircuit);
 
     // let get_node_index = |pos: &Position| {
     //     let Some(index) = pos_node.map.get(pos) else {
-    //         warn!("{pos} not in PositionToNodeIndex map");
     //         return NodeIndex::new(0);
     //     };
     //     *index
@@ -95,7 +116,7 @@ fn update_graph(
     //     }
     // };
     // graph.0.add_edge(initial_index, final_index, entity);
-    commands.trigger(ConvertCircuit);
+    // commands.trigger(ConvertCircuit);
 }
 
 #[derive(Event)]
