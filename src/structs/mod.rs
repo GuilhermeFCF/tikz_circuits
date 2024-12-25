@@ -54,6 +54,22 @@ fn on_insert_hook(mut world: DeferredWorld, entity: Entity, _component: Componen
     }
 }
 
+impl Info {
+    pub fn with_scale(&mut self, scale: String) -> Self {
+        Self {
+            label: self.label.clone(),
+            scale,
+        }
+    }
+
+    pub fn with_label(&mut self, label: String) -> Self {
+        Self {
+            label,
+            scale: self.scale.clone(),
+        }
+    }
+}
+
 impl Default for Info {
     fn default() -> Self {
         Self {

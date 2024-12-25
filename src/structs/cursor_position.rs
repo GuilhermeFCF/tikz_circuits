@@ -36,8 +36,12 @@ pub fn get_cursor_position(
     let Ok(point) = camera.viewport_to_world_2d(camera_transform, cursor_position) else {
         return;
     };
-    // TODO: multiply by a value that changes based on camera zoom.
-    let scale = if projection.scale <= 0.5 { 0.5 } else { 1. };
+
+    let scale = match projection.scale {
+        0.25 => 0.25,
+        x if x <= 0.5 => 0.5,
+        _ => 1.,
+    };
     let precision = scale * GRID_SIZE;
 
     let point = (point / precision).round() * precision;

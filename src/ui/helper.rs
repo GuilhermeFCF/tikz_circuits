@@ -142,6 +142,67 @@ pub fn text_input<'a>(p: &'a mut ChildBuilder, placeholder: &str) -> EntityComma
     // Create observer on submit event that passes to selected component.
 }
 
+pub fn change_mouse_mode(p: &mut ChildBuilder) {
+    p.spawn(Node {
+        flex_direction: FlexDirection::Row,
+        column_gap: Val::Px(5.),
+        justify_content: JustifyContent::End,
+        ..default()
+    })
+    .with_children(|p| {
+        p.spawn((
+            Button,
+            Node {
+                width: Val::Px(12.),
+                height: Val::Px(12.),
+                justify_content: JustifyContent::Center,
+                border: UiRect::all(Val::Px(1.)),
+                ..default()
+            },
+            BorderColor(spat_color(0.1)),
+            BackgroundColor(spat_color(0.2)),
+        ))
+        .observe(super::handle_over_button)
+        .observe(super::handle_out_button)
+        .observe(super::handle_click_pan_button)
+        .with_child((Text::new("P"), TextFont::from_font_size(10.)));
+
+        p.spawn((
+            Button,
+            Node {
+                width: Val::Px(12.),
+                height: Val::Px(12.),
+                justify_content: JustifyContent::Center,
+                border: UiRect::all(Val::Px(1.)),
+                ..default()
+            },
+            BorderColor(spat_color(0.1)),
+            BackgroundColor(spat_color(0.2)),
+        ))
+        .observe(super::handle_over_button)
+        .observe(super::handle_out_button)
+        .observe(super::handle_click_select_button)
+        .with_child((Text::new("S"), TextFont::from_font_size(10.)));
+
+        p.spawn((
+            Button,
+            Node {
+                width: Val::Px(12.),
+                height: Val::Px(12.),
+                justify_content: JustifyContent::Center,
+                border: UiRect::all(Val::Px(1.)),
+                ..default()
+            },
+            BorderColor(spat_color(0.1)),
+            BackgroundColor(spat_color(0.2)),
+        ))
+        .observe(super::handle_over_button)
+        .observe(super::handle_out_button)
+        .observe(super::handle_click_create_button)
+        .with_child((Text::new("C"), TextFont::from_font_size(10.)));
+    });
+}
+
 pub fn on_selected_text_input(
     mut trigger: Trigger<Pointer<Click>>,
     mut focused: ResMut<super::FocusedInputText>,

@@ -1,6 +1,8 @@
 use bevy::prelude::*;
+use bevy::ui::FocusPolicy;
 
 use crate::actions;
+use crate::input;
 use crate::structs;
 
 mod control_select_ui;
@@ -29,8 +31,8 @@ impl Plugin for UiPlugin {
                 ),
             )
             .add_observer(submit_event)
-            .add_observer(change_ui_visibility)
-            .add_observer(ui_visibility);
+            .add_observer(enable_selected_ui)
+            .add_observer(disable_selected_ui);
     }
 }
 
@@ -47,22 +49,31 @@ pub fn ui(mut commands: Commands) {
             ..default()
         })
         .observe(handle_click_on_grid)
+        .observe(handle_drag_on_grid)
         .with_children(|p| {
+            // Left panel
             p.spawn((
                 Node {
                     width: Val::Px(300.),
                     height: Val::Percent(100.),
+                    flex_direction: FlexDirection::Column,
+                    justify_content: JustifyContent::SpaceBetween,
                     border: UiRect::all(Val::Px(2.)),
                     ..default()
                 },
                 BackgroundColor(spat_color(0.15)),
-            ))
-            .observe(
-                |mut trigger: Trigger<Pointer<Click>>, mut focused: ResMut<FocusedInputText>| {
-                    *focused = FocusedInputText(Entity::PLACEHOLDER);
-                    trigger.propagate(false);
+                FocusPolicy::Block,
+                PickingBehavior {
+                    should_block_lower: true,
+                    is_hoverable: true,
                 },
-            )
+            ))
+            // .observe(
+            //     |mut trigger: Trigger<Pointer<Click>>, mut focused: ResMut<FocusedInputText>| {
+            //         *focused = FocusedInputText(Entity::PLACEHOLDER);
+            //         trigger.propagate(false);
+            //     },
+            // )
             .with_children(|p| {
                 create_col(p).with_children(|p| {
                     // Title
@@ -109,7 +120,7 @@ pub fn ui(mut commands: Commands) {
                             BorderRadius::MAX,
                         ))
                         .observe(handle_over_button)
-                        .observe(handler_out_button)
+                        .observe(handle_out_button)
                         .observe(handle_click_copy_button)
                         .with_child((Text::new("Copiar"), TextFont::from_font_size(12.)));
                     });
@@ -153,12 +164,15 @@ pub fn ui(mut commands: Commands) {
                                 BorderRadius::MAX,
                             ))
                             .observe(handle_over_button)
-                            .observe(handler_out_button)
+                            .observe(handle_out_button)
                             .observe(handle_click_delete_button)
                             .with_child((Text::new("Deletar"), TextFont::from_font_size(12.)));
                         });
                     });
                 });
+
+                // Buttons P S C
+                change_mouse_mode(p);
             });
 
             // Right side
@@ -178,7 +192,6 @@ pub fn ui(mut commands: Commands) {
                     should_block_lower: true,
                     is_hoverable: false,
                 },
-                // FocusPolicy::Block,
                 BackgroundColor(spat_color(0.15)),
                 BorderColor(spat_color(0.4)),
             ))
@@ -196,62 +209,118 @@ pub fn ui(mut commands: Commands) {
 }
 
 fn handle_click_on_grid(
-    trigger: Trigger<Pointer<Click>>,
-    mut commands: Commands,
+    trigger: Trigger<Pointer<Click>>, mut commands: Commands,
     cursor_position: Res<structs::CursorPosition>,
     selectable: Query<(Entity, &GlobalTransform), With<actions::select_node::Selectable>>,
     selected: Query<(Entity, &GlobalTransform), With<actions::select_node::Selected>>,
+    mouse_mode: Res<State<input::MouseMode>>,
 ) {
     if trigger.event().event.button != PointerButton::Primary {
         return;
     }
-    if let Ok((selected_entity, selected_transform)) = selected.get_single() {
-        commands
-            .entity(selected_entity)
-            .remove::<actions::select_node::Selected>();
-        let selected_pos = selected_transform.translation().truncate();
-        if close_to(cursor_position.pos, selected_pos) {
-            return;
+
+    // Only handle drag on MouseMode::Pan
+    if *mouse_mode == input::MouseMode::Pan {
+        return;
+    }
+
+    if *mouse_mode == input::MouseMode::SelectAndCreate {
+        if let Ok((selected_entity, selected_transform)) = selected.get_single() {
+            commands
+                .entity(selected_entity)
+                .remove::<actions::select_node::Selected>();
+            let selected_pos = selected_transform.translation().truncate();
+            if close_to(cursor_position.pos, selected_pos) {
+                return;
+            }
+        }
+        for (ent, transform) in &selectable {
+            let selected_pos = transform.translation().truncate();
+            if close_to(cursor_position.pos, selected_pos) {
+                commands.entity(ent).insert(actions::select_node::Selected);
+                return;
+            }
         }
     }
-    for (ent, transform) in &selectable {
-        let selected_pos = transform.translation().truncate();
-        if close_to(cursor_position.pos, selected_pos) {
-            commands.entity(ent).insert(actions::select_node::Selected);
-            return;
-        }
-    }
+
     commands.trigger(actions::draw_components::InitiateComponent {
         pos: cursor_position.pos,
     })
 }
+
+fn handle_drag_on_grid(
+    trigger: Trigger<Pointer<Drag>>, mut camera: Single<&mut Transform, With<Camera2d>>,
+    mouse_mode: Res<State<input::MouseMode>>, time: Res<Time>,
+) {
+    if *mouse_mode != input::MouseMode::Pan && trigger.event().button != PointerButton::Middle {
+        return;
+    }
+    const CAMERA_MIN: Vec3 = Vec3 {
+        x: -90.,
+        y: -200.,
+        z: 0.,
+    };
+
+    const CAMERA_MAX: Vec3 = Vec3 {
+        x: -200.,
+        y: -200.,
+        z: 0.,
+    };
+
+    let drag = trigger.event().delta * 10.;
+    let transform = Vec3 {
+        x: camera.translation.x - drag.x,
+        y: camera.translation.y + drag.y,
+        z: 0.,
+    };
+    let clamped = transform.clamp(CAMERA_MIN, CAMERA_MAX);
+    camera
+        .translation
+        .smooth_nudge(&clamped, 1.5, time.delta_secs())
+}
+
 fn handle_over_button(
-    trigger: Trigger<Pointer<Over>>,
-    mut background: Query<&mut BackgroundColor>,
+    trigger: Trigger<Pointer<Over>>, mut background: Query<&mut BackgroundColor>,
 ) {
     let entity = trigger.entity();
     let mut background_color = background.get_mut(entity).unwrap();
     background_color.0 = spat_color(0.25);
 }
 
-fn handler_out_button(trigger: Trigger<Pointer<Out>>, mut background: Query<&mut BackgroundColor>) {
+fn handle_out_button(trigger: Trigger<Pointer<Out>>, mut background: Query<&mut BackgroundColor>) {
     let entity = trigger.entity();
     let mut background_color = background.get_mut(entity).unwrap();
     background_color.0 = spat_color(0.15);
 }
 
 fn handle_click_delete_button(
-    _: Trigger<Pointer<Click>>,
-    mut commands: Commands,
+    _: Trigger<Pointer<Click>>, mut commands: Commands,
     selected: Single<Entity, With<actions::select_node::Selected>>,
 ) {
     commands.trigger_targets(actions::DeleteComponent, *selected);
 }
 
 fn handle_click_copy_button(
-    _: Trigger<Pointer<Click>>,
-    circuit: Single<&Text, With<structs::CircuitText>>,
+    _: Trigger<Pointer<Click>>, circuit: Single<&Text, With<structs::CircuitText>>,
 ) {
     let mut clipboard = arboard::Clipboard::new().unwrap();
     clipboard.set_text(circuit.0.clone()).unwrap();
+}
+
+fn handle_click_pan_button(
+    _: Trigger<Pointer<Click>>, mut next_state: ResMut<NextState<input::MouseMode>>,
+) {
+    next_state.set(input::MouseMode::Pan);
+}
+
+fn handle_click_select_button(
+    _: Trigger<Pointer<Click>>, mut next_state: ResMut<NextState<input::MouseMode>>,
+) {
+    next_state.set(input::MouseMode::SelectAndCreate);
+}
+
+fn handle_click_create_button(
+    _: Trigger<Pointer<Click>>, mut next_state: ResMut<NextState<input::MouseMode>>,
+) {
+    next_state.set(input::MouseMode::Create);
 }

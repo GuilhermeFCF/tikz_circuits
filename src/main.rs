@@ -31,6 +31,7 @@ fn main() {
         .insert_resource(create::CurrentFile(
             "/home/guilherme/projects/circuits/test.tex".to_string(),
         ))
+        .insert_state(input::MouseMode::default())
         .add_plugins(graph::GraphPlugin)
         .add_systems(Startup, (setup, components::load_handles))
         .add_systems(
@@ -39,14 +40,13 @@ fn main() {
                 structs::get_cursor_position,
                 actions::select_node::despawn_selected.run_if(input_just_pressed(KeyCode::Delete)),
                 actions::move_entity.run_if(input_pressed(MouseButton::Right)),
-                input::remove_all.run_if(input_just_pressed(MouseButton::Middle)),
                 input::change_current_component,
-                input::camera_movement,
                 input::cancel_action.run_if(input_just_pressed(KeyCode::Escape)),
                 input::zoom_scale,
             ),
         )
         .add_observer(create::create)
+        .add_observer(input::remove_all)
         .add_observer(create::update_file)
         .add_observer(actions::draw_components::draw_initial_component)
         .add_observer(actions::delete_component)
