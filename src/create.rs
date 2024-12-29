@@ -10,11 +10,9 @@ use crate::*;
 pub struct ConvertCircuit;
 
 pub fn create(
-    _: Trigger<ConvertCircuit>,
-    mut commands: Commands,
+    _: Trigger<ConvertCircuit>, mut commands: Commands,
     components: Query<(Entity, &ComponentStructure, &TikzComponent, &Info)>,
-    mut text: Single<&mut Text, With<CircuitText>>,
-    parents: Query<&ComponentLabel>,
+    mut text: Single<&mut Text, With<CircuitText>>, parents: Query<&ComponentLabel>,
     children: Query<(&GlobalTransform, &Parent, &ComponentLabel)>,
 ) {
     let mut pos_label = HashMap::new();
@@ -25,6 +23,7 @@ pub fn create(
             format!("({}{})", parent_label.label, child_label.label),
         );
     }
+
     let mut pos_map = HashMap::new();
     let mut insert_on_map = |pos: Position| {
         pos_map
@@ -69,8 +68,8 @@ pub fn create(
 
     for (ent, component, c_type, info) in &components {
         let parent_label = parents.get(ent).unwrap();
-        let c_label = get_component_label(parent_label);
-        let c_info = get_component_info(info);
+        let c_label = parent_label.get_label();
+        let c_info = info.get_component_info();
         let c_type = c_type.tikz_type();
         match component {
             ComponentStructure::Node(position) => {
@@ -96,26 +95,6 @@ pub fn create(
     commands.trigger(UpdateFile);
 }
 
-fn get_component_info(component_info: &Info) -> String {
-    let mut buf = String::default();
-    if !component_info.label.is_empty() {
-        buf.push_str(&format!(", label={}", component_info.label));
-    }
-
-    if component_info.scale != 1.0.to_string() {
-        buf.push_str(&format!(", scale={}", component_info.scale));
-    }
-    buf
-}
-
-fn get_component_label(label: &ComponentLabel) -> String {
-    let mut buf = String::default();
-    if !label.label.is_empty() {
-        buf.push_str(&format!("({})", label.label));
-    }
-    buf
-}
-
 #[derive(Resource)]
 pub struct CurrentFile(pub String);
 
@@ -123,9 +102,7 @@ pub struct CurrentFile(pub String);
 pub struct UpdateFile;
 
 pub fn update_file(
-    _: Trigger<UpdateFile>,
-    file: Res<CurrentFile>,
-    text: Single<&Text, With<CircuitText>>,
+    _: Trigger<UpdateFile>, file: Res<CurrentFile>, text: Single<&Text, With<CircuitText>>,
 ) {
     let file = file.0.clone();
     let mut file = File::create(file).unwrap();

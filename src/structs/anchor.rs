@@ -3,8 +3,6 @@ use bevy::{
     prelude::*,
 };
 
-use crate::create::ConvertCircuit;
-
 use super::{BuildInfo, ComponentStructure};
 
 #[derive(Component)]
@@ -27,6 +25,4 @@ fn on_insert_hook(mut world: DeferredWorld, entity: Entity, _component: Componen
 
     let mut transform = world.get_mut::<Transform>(entity).unwrap();
     transform.translation = (middle, 0.0).into();
-
-    world.trigger::<ConvertCircuit>(ConvertCircuit);
 }

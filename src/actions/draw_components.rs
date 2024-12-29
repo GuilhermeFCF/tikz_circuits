@@ -2,7 +2,7 @@ use crate::components::InfoMeshes;
 use bevy::prelude::*;
 
 use crate::components::Handles;
-use crate::graph::UpdateGraph;
+use crate::graph::AddToGraph;
 use crate::{actions, structs::*, TEXT_SCALE};
 
 use crate::GRID_SIZE;
@@ -19,10 +19,7 @@ fn label(height: f32) -> impl Bundle {
 }
 
 fn initial_component(
-    comp_type: TikzComponent,
-    structure: ComponentStructure,
-    translation: Vec3,
-    angle: f32,
+    comp_type: TikzComponent, structure: ComponentStructure, translation: Vec3, angle: f32,
 ) -> impl Bundle {
     (
         comp_type,
@@ -46,12 +43,9 @@ pub struct InitiateComponent {
 }
 
 pub fn draw_initial_component(
-    trigger: Trigger<InitiateComponent>,
-    mut commands: Commands,
-    dots: Query<(Entity, &GlobalTransform), With<FirstPos>>,
-    cc: Res<TikzComponent>,
-    handles: Res<Handles>,
-    material: ResMut<Assets<ColorMaterial>>,
+    trigger: Trigger<InitiateComponent>, mut commands: Commands,
+    dots: Query<(Entity, &GlobalTransform), With<FirstPos>>, cc: Res<TikzComponent>,
+    handles: Res<Handles>, material: ResMut<Assets<ColorMaterial>>,
 ) {
     let InitiateComponent { pos } = trigger.event();
     let pos = pos.extend(0.);
@@ -66,13 +60,10 @@ pub fn draw_initial_component(
                 .with_children(|p| {
                     p.spawn(label(text_height));
 
-                    p.spawn(Sprite::from_color(
-                        Color::Srgba(Srgba::gray(0.5)),
-                        Vec2::splat(4.0),
-                    ));
+                    p.spawn(Sprite::from_color(Color::Srgba(Srgba::gray(0.5)), Vec2::splat(4.0)));
                 })
                 .id();
-            commands.trigger(UpdateGraph(structure, dot));
+            commands.trigger(AddToGraph(structure, dot));
             return;
         }
         x if x.is_single() => {
@@ -123,18 +114,15 @@ pub fn draw_initial_component(
                 ));
             })
             .id();
-        commands.trigger(UpdateGraph(structure, line));
+        commands.trigger(AddToGraph(structure, line));
         return;
     }
     draw_from_mesh(&mut commands, *cc, handles, material, structure);
 }
 
 pub fn draw_from_mesh(
-    commands: &mut Commands,
-    cc: TikzComponent,
-    handles: Res<Handles>,
-    mut material: ResMut<Assets<ColorMaterial>>,
-    structure: ComponentStructure,
+    commands: &mut Commands, cc: TikzComponent, handles: Res<Handles>,
+    mut material: ResMut<Assets<ColorMaterial>>, structure: ComponentStructure,
 ) {
     const SIZE: f32 = GRID_SIZE * 1.5;
     let (initial, len, angle, middle) = match structure {
@@ -193,7 +181,7 @@ pub fn draw_from_mesh(
     if cc == TikzComponent::AmpOp {
         fill_amp_labels(component, commands);
     }
-    commands.trigger(UpdateGraph(structure, component));
+    commands.trigger(AddToGraph(structure, component));
 }
 
 fn fill_amp_labels(amp: Entity, commands: &mut Commands) {

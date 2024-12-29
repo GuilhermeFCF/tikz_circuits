@@ -22,20 +22,12 @@ impl CursorPosition {
 }
 
 pub fn get_cursor_position(
-    mut cursor: ResMut<CursorPosition>,
-    window: Single<&Window>,
+    mut cursor: ResMut<CursorPosition>, window: Single<&Window>,
     q_camera: Single<(&Camera, &OrthographicProjection, &GlobalTransform)>,
     mut cursor_identifier: Single<&mut Transform, With<CursorIdentifier>>,
     mut ui_pos: Single<&mut Text, With<ui::PositionIdentifier>>,
 ) {
     let (camera, projection, camera_transform) = *q_camera;
-    let Some(cursor_position) = window.cursor_position() else {
-        return;
-    };
-
-    let Ok(point) = camera.viewport_to_world_2d(camera_transform, cursor_position) else {
-        return;
-    };
 
     let scale = match projection.scale {
         0.25 => 0.25,
@@ -44,9 +36,16 @@ pub fn get_cursor_position(
     };
     let precision = scale * GRID_SIZE;
 
-    let point = (point / precision).round() * precision;
-    cursor.update_pos(point);
-    cursor_identifier.translation = point.extend(0.);
-    let tikz = structs::Position::from(point).tikz_coords();
-    ui_pos.0 = format!("M({}, {}) T({}, {})", point.x, point.y, tikz.x, tikz.y);
+    if let Some(point) = window
+        .cursor_position()
+        .and_then(|cursor| camera.viewport_to_world_2d(camera_transform, cursor).ok())
+    {
+        let point = (point / precision).round() * precision;
+
+        let tikz = structs::Position::from(point).tikz_coords();
+        ui_pos.0 = format!("M({}, {}) T({}, {})", point.x, point.y, tikz.x, tikz.y);
+
+        cursor.update_pos(point);
+        cursor_identifier.translation = point.extend(0.);
+    }
 }

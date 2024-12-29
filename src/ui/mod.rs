@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy::ui::FocusPolicy;
 
 use crate::actions;
 use crate::input;
@@ -62,18 +61,8 @@ pub fn ui(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(spat_color(0.15)),
-                FocusPolicy::Block,
-                PickingBehavior {
-                    should_block_lower: true,
-                    is_hoverable: true,
-                },
             ))
-            // .observe(
-            //     |mut trigger: Trigger<Pointer<Click>>, mut focused: ResMut<FocusedInputText>| {
-            //         *focused = FocusedInputText(Entity::PLACEHOLDER);
-            //         trigger.propagate(false);
-            //     },
-            // )
+            .observe(|mut trigger: Trigger<Pointer<Click>>| trigger.propagate(false))
             .with_children(|p| {
                 create_col(p).with_children(|p| {
                     // Title
@@ -213,7 +202,7 @@ fn handle_click_on_grid(
     cursor_position: Res<structs::CursorPosition>,
     selectable: Query<(Entity, &GlobalTransform), With<actions::select_node::Selectable>>,
     selected: Query<(Entity, &GlobalTransform), With<actions::select_node::Selected>>,
-    mouse_mode: Res<State<input::MouseMode>>,
+    mouse_mode: Res<State<input::MouseMode>>, mut focused: ResMut<FocusedInputText>,
 ) {
     if trigger.event().event.button != PointerButton::Primary {
         return;
@@ -223,6 +212,8 @@ fn handle_click_on_grid(
     if *mouse_mode == input::MouseMode::Pan {
         return;
     }
+
+    *focused = FocusedInputText(Entity::PLACEHOLDER);
 
     if *mouse_mode == input::MouseMode::SelectAndCreate {
         if let Ok((selected_entity, selected_transform)) = selected.get_single() {
@@ -262,8 +253,8 @@ fn handle_drag_on_grid(
     };
 
     const CAMERA_MAX: Vec3 = Vec3 {
-        x: -200.,
-        y: -200.,
+        x: 250.,
+        y: 200.,
         z: 0.,
     };
 

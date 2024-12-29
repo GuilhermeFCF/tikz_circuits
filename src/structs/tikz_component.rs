@@ -4,7 +4,7 @@ use bevy::{
     prelude::*,
 };
 
-// NOTE:This label is to call the "coordinate" of that component.
+// This label is to call the "coordinate" of that component.
 #[derive(Component)]
 #[component(on_add = hook)]
 #[component(on_remove = hook)]
@@ -14,6 +14,18 @@ pub struct ComponentLabel {
 
 fn hook(mut world: DeferredWorld, _: Entity, _component_id: ComponentId) {
     world.trigger::<UpdateComponentLabel>(UpdateComponentLabel);
+}
+
+impl ComponentLabel {
+    pub fn get_label(&self) -> String {
+        format!("({})", self.label)
+    }
+}
+
+impl std::fmt::Display for ComponentLabel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({})", self.label)
+    }
 }
 
 #[derive(Component, Debug, Copy, Clone)]

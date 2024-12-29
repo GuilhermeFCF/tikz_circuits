@@ -8,8 +8,7 @@ pub mod select_node;
 
 #[allow(clippy::type_complexity)]
 pub fn move_entity(
-    mut commands: Commands,
-    cursor_positon: Res<CursorPosition>,
+    mut commands: Commands, cursor_positon: Res<CursorPosition>,
     component: Single<Entity, (With<select_node::Selected>, With<Anchored>)>,
 ) {
     commands
@@ -29,8 +28,7 @@ pub fn delete_component(trigger: Trigger<DeleteComponent>, mut commands: Command
 pub struct UpdateComponentLabel;
 
 pub fn update_component_label(
-    _: Trigger<UpdateComponentLabel>,
-    mut components: Query<(&mut ComponentLabel, &TikzComponent)>,
+    _: Trigger<UpdateComponentLabel>, mut components: Query<(&mut ComponentLabel, &TikzComponent)>,
 ) {
     let mut map = HashMap::<String, u32>::new();
     for (mut label, typec) in components.iter_mut() {
@@ -39,6 +37,9 @@ pub fn update_component_label(
             TikzComponent::OrGate => "OR",
             TikzComponent::XorGate => "XOR",
             TikzComponent::NotGate => "NOT",
+            TikzComponent::AmpOp => "AOP",
+            TikzComponent::Transformer => "T",
+            TikzComponent::Transistor => "S",
             _ => "E",
         };
 

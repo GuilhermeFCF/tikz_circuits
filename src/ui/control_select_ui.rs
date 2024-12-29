@@ -1,4 +1,4 @@
-use crate::{create::ConvertCircuit, input_widget::*};
+use crate::input_widget::*;
 use bevy::prelude::*;
 
 #[derive(Component)]
@@ -18,27 +18,15 @@ pub fn enable_selected_ui(
     mut selected_ui: Single<&mut Visibility, With<SelectedInterface>>,
     mut component_identifier: Single<
         &mut Text,
-        (
-            With<SelectedComponentIdentifier>,
-            Without<LabelIdentifier>,
-            Without<ScaleIdentifier>,
-        ),
+        (With<SelectedComponentIdentifier>, Without<LabelIdentifier>, Without<ScaleIdentifier>),
     >,
     mut label_identifier: Single<
         &mut TextInputValue,
-        (
-            With<LabelIdentifier>,
-            Without<SelectedComponentIdentifier>,
-            Without<ScaleIdentifier>,
-        ),
+        (With<LabelIdentifier>, Without<SelectedComponentIdentifier>, Without<ScaleIdentifier>),
     >,
     mut scale_identifier: Single<
         &mut TextInputValue,
-        (
-            With<ScaleIdentifier>,
-            Without<SelectedComponentIdentifier>,
-            Without<LabelIdentifier>,
-        ),
+        (With<ScaleIdentifier>, Without<SelectedComponentIdentifier>, Without<LabelIdentifier>),
     >,
     selected: Single<
         (&crate::TikzComponent, &crate::structs::Info),
@@ -63,10 +51,8 @@ pub fn disable_selected_ui(
 }
 
 pub fn submit_event(
-    trigger: Trigger<TextInputSubmitEvent>,
-    mut commands: Commands,
-    mut focused: ResMut<super::FocusedInputText>,
-    is_label: Query<&LabelIdentifier>,
+    trigger: Trigger<TextInputSubmitEvent>, mut commands: Commands,
+    mut focused: ResMut<super::FocusedInputText>, is_label: Query<&LabelIdentifier>,
     mut selected: Single<
         (Entity, &mut crate::structs::Info),
         With<crate::actions::select_node::Selected>,
@@ -80,6 +66,5 @@ pub fn submit_event(
         Err(_) => selected.1.with_scale(new_value.value.clone()),
     };
     commands.entity(selected.0).insert(info);
-    commands.trigger(ConvertCircuit);
     *focused = super::FocusedInputText(Entity::PLACEHOLDER);
 }

@@ -18,8 +18,6 @@ use structs::TikzComponent;
 
 const TEXT_SCALE: f32 = 0.6;
 const GRID_SIZE: f32 = 16.0;
-const GRID_COUNT: u32 = 40;
-const OFFSET: f32 = GRID_COUNT as f32 * GRID_SIZE / 2.0;
 
 fn main() {
     App::new()
@@ -58,11 +56,7 @@ fn setup(mut commands: Commands) {
     commands.spawn(Camera2d);
 
     commands
-        .spawn((
-            Visibility::default(),
-            Transform::from_xyz(160., 0., 0.),
-            structs::ZeroMarker,
-        ))
+        .spawn((Visibility::default(), Transform::from_xyz(160., 0., 0.), structs::ZeroMarker))
         .with_children(|commands| {
             commands.spawn((
                 Sprite {
@@ -85,7 +79,7 @@ fn setup(mut commands: Commands) {
         Transform::from_scale(Vec3::splat(2.0)),
         structs::CursorIdentifier,
     ));
-    let count = 10 * GRID_COUNT;
+    let count = 100;
     for x in -(count as isize) / 2..=count as isize / 2 {
         let x = x as f32 * GRID_SIZE;
         commands.spawn((

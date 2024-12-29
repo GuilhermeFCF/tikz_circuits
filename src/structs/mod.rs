@@ -47,7 +47,7 @@ fn on_insert_hook(mut world: DeferredWorld, entity: Entity, _component: Componen
         return;
     };
 
-    let text_ent = children[0];
+    let text_ent = *children.first().unwrap();
     let new_text = Text2d::new(world.get::<Info>(entity).unwrap().label.clone());
     if let Some(mut text) = world.get_mut::<Text2d>(text_ent) {
         *text = new_text;
@@ -67,6 +67,18 @@ impl Info {
             label,
             scale: self.scale.clone(),
         }
+    }
+    pub fn get_component_info(&self) -> String {
+        let mut buf = String::default();
+        if !self.label.is_empty() {
+            buf.push_str(&format!(", label={}", self.label));
+        }
+
+        if self.scale != 1.0.to_string() {
+            buf.push_str(&format!(", scale={}", self.scale));
+        }
+
+        buf
     }
 }
 
