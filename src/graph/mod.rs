@@ -129,9 +129,7 @@ impl CircuitGraph {
 fn testing(
     mut commands: Commands, graph: Res<CircuitGraph>, child_labels: Res<LabelChildComponent>,
     components: Query<(&crate::structs::TikzComponent, &crate::structs::Info, &ComponentLabel)>,
-    mut text: Single<&mut Text, With<crate::structs::CircuitText>>,
 ) {
-    info!("------------- Printing new circuit -------------");
     let mut buffer = "\\draw\n".to_string();
     let mut coord_labels: HashMap<Position, String> = HashMap::default();
     let mut seen_edges = HashSet::default();
@@ -211,8 +209,7 @@ fn testing(
         }
     }
     buffer.push(';');
-    text.0 = buffer;
-    commands.trigger(crate::create::UpdateFile);
+    commands.trigger(crate::ui::UpdateCircuitText { text: buffer });
 }
 
 // Try to convert coordinate from normal position to label.

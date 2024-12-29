@@ -4,11 +4,15 @@ use crate::actions;
 use crate::input;
 use crate::structs;
 
+mod circuit_text;
 mod control_select_ui;
 mod helper;
 
+use circuit_text::*;
 use control_select_ui::*;
 use helper::*;
+
+pub use circuit_text::UpdateCircuitText;
 
 #[derive(Component)]
 pub struct PositionIdentifier;
@@ -30,6 +34,7 @@ impl Plugin for UiPlugin {
                 ),
             )
             .add_observer(submit_event)
+            .add_observer(update_circuit_text)
             .add_observer(enable_selected_ui)
             .add_observer(disable_selected_ui);
     }
@@ -94,7 +99,7 @@ pub fn ui(mut commands: Commands) {
                     separator(p);
 
                     // Text comes here
-                    draw_text(p, "\\draw\n;").insert(structs::CircuitText);
+                    draw_text(p, "\\draw\n;").insert(CircuitText);
 
                     create_row(p).with_children(|p| {
                         p.spawn((
@@ -291,9 +296,7 @@ fn handle_click_delete_button(
     commands.trigger_targets(actions::DeleteComponent, *selected);
 }
 
-fn handle_click_copy_button(
-    _: Trigger<Pointer<Click>>, circuit: Single<&Text, With<structs::CircuitText>>,
-) {
+fn handle_click_copy_button(_: Trigger<Pointer<Click>>, circuit: Single<&Text, With<CircuitText>>) {
     let mut clipboard = arboard::Clipboard::new().unwrap();
     clipboard.set_text(circuit.0.clone()).unwrap();
 }

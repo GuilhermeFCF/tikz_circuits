@@ -12,9 +12,6 @@ pub use cursor_position::*;
 pub use position::*;
 pub use tikz_component::*;
 
-#[derive(Component)]
-pub struct CircuitText;
-
 #[derive(Component, Clone, Copy, Default)]
 pub struct BuildInfo {
     pub angle: f32,
