@@ -1,7 +1,4 @@
 use bevy::prelude::*;
-use std::fs::File;
-use std::io::Write;
-use structs::CircuitText;
 
 use crate::structs::{ComponentLabel, ComponentStructure, Info, Position, TikzComponent};
 use crate::*;
@@ -10,10 +7,9 @@ use crate::*;
 pub struct ConvertCircuit;
 
 pub fn create(
-    _: Trigger<ConvertCircuit>, mut commands: Commands,
+    _: Trigger<ConvertCircuit>, _commands: Commands,
     components: Query<(Entity, &ComponentStructure, &TikzComponent, &Info)>,
-    mut text: Single<&mut Text, With<CircuitText>>, parents: Query<&ComponentLabel>,
-    children: Query<(&GlobalTransform, &Parent, &ComponentLabel)>,
+    parents: Query<&ComponentLabel>, children: Query<(&GlobalTransform, &Parent, &ComponentLabel)>,
 ) {
     let mut pos_label = HashMap::new();
     for (child_transform, parent, child_label) in &children {
@@ -91,20 +87,4 @@ pub fn create(
         }
     }
     buffer.push(';');
-    text.0 = buffer;
-    commands.trigger(UpdateFile);
-}
-
-#[derive(Resource)]
-pub struct CurrentFile(pub String);
-
-#[derive(Event)]
-pub struct UpdateFile;
-
-pub fn update_file(
-    _: Trigger<UpdateFile>, file: Res<CurrentFile>, text: Single<&Text, With<CircuitText>>,
-) {
-    let file = file.0.clone();
-    let mut file = File::create(file).unwrap();
-    file.write_all(text.0.as_bytes()).unwrap();
 }

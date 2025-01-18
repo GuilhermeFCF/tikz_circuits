@@ -65,14 +65,14 @@ fn remove_from_graph(trigger: Trigger<RemoveFromGraph>, mut graph: ResMut<Circui
 
 #[derive(Resource, Debug)]
 struct LabelChildComponent {
-    map: HashMap<Position, String>,
+    map: HashMap<Position, Coordinate>,
 }
 
 impl LabelChildComponent {
     #[inline]
     fn coord_from(&self, pos: Position) -> Coordinate {
         match self.map.get(&pos) {
-            Some(label) => Coordinate::Label(label.to_string()),
+            Some(coordinate) => coordinate.clone(),
             None => Coordinate::Position(pos),
         }
     }
@@ -89,7 +89,7 @@ fn update_child_label<E: Event>(
         let parent_label = parents.get(**parent).unwrap();
         child_labels.map.insert(
             child_transform.translation().truncate().into(),
-            format!("{}{}", parent_label.label, child_label.label),
+            Coordinate::Label(format!("{}{}", parent_label.label, child_label.label)),
         );
     }
 }
@@ -131,7 +131,7 @@ fn testing(
     components: Query<(&crate::structs::TikzComponent, &crate::structs::Info, &ComponentLabel)>,
 ) {
     let mut buffer = "\\draw\n".to_string();
-    let mut coord_labels: HashMap<Position, String> = HashMap::default();
+    let mut coord_labels: HashMap<Position, Coordinate> = HashMap::default();
     let mut seen_edges = HashSet::default();
 
     let mut last_target = Position { x: -1000, y: -1000 };
@@ -143,15 +143,14 @@ fn testing(
                 .edges(node)
                 .filter(|e| seen_edges.insert(e.weight())),
         );
-
         while let Some(edge) = stack.pop() {
             let (node_source, node_target, &entity) = (edge.source(), edge.target(), edge.weight());
 
-            let coord_label = format!("A{}", coord_labels.len() + 1);
+            let coord_label = Coordinate::Label(format!("A{}", coord_labels.len() + 1));
             let source = graph.get_pos(node_source).unwrap();
             let target = graph.get_pos(node_target).unwrap();
 
-            let mut place_coordinate = false;
+            let mut coordinate = "".to_string();
             let mut edges = 0;
             for edge in graph.graph.edges(node_target) {
                 if seen_edges.insert(edge.weight()) {
@@ -159,8 +158,13 @@ fn testing(
 
                     edges += 1;
                     if edges >= 2 {
-                        coord_labels.insert(target, coord_label.clone());
-                        place_coordinate = true;
+                        coordinate = format!(
+                            " coordinate {}",
+                            coord_label.coords(CoordinateOptions {
+                                with_parens: true,
+                                ..Default::default()
+                            })
+                        );
                     }
                 }
             }
@@ -168,7 +172,9 @@ fn testing(
             let (cc, info, parent_label) = components.get(entity).unwrap();
             let parent_label = parent_label.get_label();
             let c_type = cc.tikz_type();
+            let node_or_to = if cc.is_single() { "node" } else { "to" };
             let c_info = info.get_component_info();
+            let inside = format!("{}{}", c_type, c_info);
 
             let coord1 = find_coord(source.into(), None, &child_labels, &coord_labels);
             let coord2 =
@@ -176,46 +182,41 @@ fn testing(
 
             let hidden = source == last_target;
 
-            if source == target {
-                buffer.push_str(&format!(
-                    "{} node[{c_type}{c_info}]{parent_label}{{}}\n",
-                    coord1.coords(CoordinateOptions {
-                        relative_to: None,
-                        hidden,
-                        with_parens: true
-                    },)
-                ));
+            let s_coord1 = coord1.coords(CoordinateOptions {
+                relative_to: None,
+                hidden,
+                with_parens: true,
+            });
+
+            let s_coord2 = coord2.coords(CoordinateOptions {
+                relative_to: Some(Coordinate::Position(source)),
+                hidden: false,
+                with_parens: true,
+            });
+
+            let end = if cc.is_single() {
+                format!("{parent_label}{{}}")
             } else {
-                let coordinate = if place_coordinate {
-                    format!("coordinate {coord_label}")
-                } else {
-                    "".to_string()
-                };
-                buffer.push_str(&format!(
-                    "{} to[{c_type}{c_info}] {}{coordinate}\n",
-                    coord1.coords(CoordinateOptions {
-                        relative_to: None,
-                        hidden,
-                        with_parens: true
-                    },),
-                    coord2.coords(CoordinateOptions {
-                        relative_to: Some(Coordinate::Position(source)),
-                        hidden: false,
-                        with_parens: true,
-                    },)
-                ));
-            }
+                format!("{s_coord2} {coordinate}")
+            };
+
+            buffer.push_str(&format!(" {s_coord1} {node_or_to}[{inside}] {end}\n"));
             last_target = target;
+
+            if !coordinate.is_empty() {
+                coord_labels.insert(target, coord_label);
+            }
         }
     }
     buffer.push(';');
+
+    // Validate nodes
     commands.trigger(crate::ui::UpdateCircuitText { text: buffer });
 }
 
-// Try to convert coordinate from normal position to label.
 fn find_coord(
     coordinate: Coordinate, last_position: Option<Coordinate>,
-    child_labels: &Res<LabelChildComponent>, coord_labels: &HashMap<Position, String>,
+    child_labels: &Res<LabelChildComponent>, coord_labels: &HashMap<Position, Coordinate>,
 ) -> Coordinate {
     if let Coordinate::Label(_) = coordinate {
         return coordinate;
@@ -226,14 +227,15 @@ fn find_coord(
         x => return x,
     };
 
-    if let Some(label) = coord_labels.get(&coordinate.as_position_unchecked()) {
-        return Coordinate::Label(label.to_string());
-    };
+    match coord_labels.get(&coordinate.as_position_unchecked()) {
+        Some(Coordinate::Position(_)) => {}
+        Some(x) => return x.clone(),
+        None => {}
+    }
 
     if let Some(last_position) = last_position.clone() {
         let v_last_position = last_position.as_tikz_coords().unwrap();
         for (known_node, label) in child_labels.map.iter().chain(coord_labels.iter()) {
-            let label = Coordinate::Label(label.to_string());
             let v_pos = known_node.tikz_coords();
             let Ok(dir) = Dir2::new(v_last_position - v_pos) else {
                 continue;
@@ -244,11 +246,11 @@ fn find_coord(
 
             let last_label = find_coord(last_position.clone(), None, child_labels, coord_labels);
             if coordinate.as_position_unchecked().x == known_node.x {
-                return last_label.intersect_x(&label);
+                return last_label.intersect(label, false);
             }
 
             if coordinate.as_position_unchecked().y == known_node.y {
-                return last_label.intersect_y(&label);
+                return last_label.intersect(label, true);
             }
         }
     }
@@ -256,10 +258,7 @@ fn find_coord(
     coordinate
 }
 
-#[allow(dead_code)]
-// This should contain "normalized" positions of tikz_coords
-// This cant be hashed, so its still needed to store position in the hashmaps
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum Coordinate {
     Position(Position),
     Label(String),
@@ -271,34 +270,23 @@ impl Default for Coordinate {
     }
 }
 
-#[allow(dead_code)]
 impl Coordinate {
     fn coords(&self, options: CoordinateOptions) -> String {
         if options.hidden {
             return "".to_string();
         }
-        let mut override_relative = false;
-        let mut pos = Vec2::default();
-        let mut inner = match self {
-            // If its label than options.relative must be false,
-            Self::Label(s) => {
-                override_relative = true;
-                s.to_string()
-            }
+        let mut relative = "";
+        let inner = match self {
+            Self::Label(s) => s.to_string(),
             Self::Position(v) => {
-                let v = v.tikz_coords();
-                pos = v;
-                format!("{}, {}", v.x, v.y)
+                let mut current = v.tikz_coords();
+                if let Some(Coordinate::Position(last)) = options.relative_to {
+                    relative = "++";
+                    current -= last.tikz_coords();
+                }
+                format!("{}, {}", current.x, current.y)
             }
         };
-        let mut relative = "";
-        if !override_relative {
-            if let Some(Coordinate::Position(s)) = options.relative_to {
-                relative = "++";
-                let new = pos - s.tikz_coords();
-                inner = format!("{}, {}", new.x, new.y);
-            }
-        }
         format!(
             "{}{}",
             relative,
@@ -328,22 +316,15 @@ impl Coordinate {
         self.as_position().unwrap()
     }
 
-    fn as_tikz_coords_unchecked(&self) -> Vec2 {
-        self.as_tikz_coords().unwrap()
-    }
-
-    fn intersect_x(&self, other: &Self) -> Self {
+    fn intersect(&self, other: &Self, is_y: bool) -> Self {
+        let mut middle = *b"-|";
+        if is_y {
+            middle.reverse();
+        }
         Self::Label(format!(
-            "{} -| {}",
+            "{} {} {}",
             self.coords(CoordinateOptions::default()),
-            other.coords(CoordinateOptions::default())
-        ))
-    }
-
-    fn intersect_y(&self, other: &Self) -> Self {
-        Self::Label(format!(
-            "{} |- {}",
-            self.coords(CoordinateOptions::default()),
+            std::str::from_utf8(&middle).unwrap(),
             other.coords(CoordinateOptions::default())
         ))
     }

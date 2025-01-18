@@ -26,9 +26,7 @@ fn main() {
         .add_plugins(ui::UiPlugin)
         .insert_resource(structs::TikzComponent::Resistor)
         .insert_resource(structs::CursorPosition::default())
-        .insert_resource(create::CurrentFile(
-            "/home/guilherme/projects/circuits/test.tex".to_string(),
-        ))
+        .insert_resource(ui::CurrentFile("/home/guilherme/projects/circuits/test.tex".to_string()))
         .insert_state(input::MouseMode::default())
         .add_plugins(graph::GraphPlugin)
         .add_systems(Startup, (setup, components::load_handles))
@@ -45,7 +43,7 @@ fn main() {
         )
         .add_observer(create::create)
         .add_observer(input::remove_all)
-        .add_observer(create::update_file)
+        .add_observer(ui::update_file)
         .add_observer(actions::draw_components::draw_initial_component)
         .add_observer(actions::delete_component)
         .add_observer(actions::update_component_label)

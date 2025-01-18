@@ -12,7 +12,7 @@ use circuit_text::*;
 use control_select_ui::*;
 use helper::*;
 
-pub use circuit_text::UpdateCircuitText;
+pub use circuit_text::{update_file, CurrentFile, UpdateCircuitText};
 
 #[derive(Component)]
 pub struct PositionIdentifier;
